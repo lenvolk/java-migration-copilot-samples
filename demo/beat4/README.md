@@ -205,6 +205,7 @@ Keep your pre-run until after the customer meeting. Merged plan files stay on `m
 | `Branch modernize/issue-<N> already exists` | Run `reset.ps1 -CloseRun <N>` or delete the branch, then re-run |
 | `verify-build` fails on tests | Compare with the baseline in the tracker comment. Re-run the Code Fixer |
 | Agent cannot download Maven dependencies | The workflow allows the `java` network ecosystem. Check the agent log for a blocked domain and add it under `network.allowed` in the worker `.md`, then recompile |
+| An agent's comment shows another agent's content, or `safe_outputs` fails with `No handler loaded for type` | Artifact name collision. Each worker needs a unique `stage` input (already set). If you add a worker, give it its own default |
 | `gh extension upgrade aw` fails with SAML | Ignore it if `gh aw version` is v0.89.21 or newer |
 
 ## Files in this repository
