@@ -109,11 +109,40 @@ jobs:
           gh label create modernization --color 1d76db --force >/dev/null
           gh label create ready-for-human-review --color 0e8a16 --force >/dev/null
           gh label create needs-attention --color d93f0b --force >/dev/null
+          cat > pr-body.md <<'BODY'
+          ## Summary
+
+          Draft. The modernization pipeline is running for issue __ISSUE__ and pushes commits to `__BRANCH__`. The original Java 8 code stays on `main`. A reviewer agent rewrites this description when the checks finish.
+
+          ```mermaid
+          flowchart LR
+              A["Plan merged: issue __ISSUE__"] --> B["Analysis: 3 in parallel"]
+              B --> C["Build upgrade"]
+              C --> D["Code fixes"]
+              D --> E["Verify build and versions"]
+              E --> F["Plan review"]
+              F --> G["Ready for human review"]
+          ```
+
+          ## Evidence
+
+          - **Before:** `main` is Java 8 and Spring Boot 2.7.18. Approved plan: `__PLAN__`.
+            **After:** pending. The status comment below shows each stage as it finishes.
+
+          ## Merge Danger
+
+          **Door:** two-way. Nothing on `main` has changed.
+
+          Do not merge while this pull request is a draft.
+
+          **Blast Radius:** None
+
+          Closes #__ISSUE__
+          BODY
+          sed -i "s|__ISSUE__|$ISSUE|g; s|__BRANCH__|$BRANCH|g; s|__PLAN__|$PLAN|g" pr-body.md
           gh pr create --draft --base main --head "$BRANCH" --label modernization \
             --title "[modernization] Upgrade Asset Manager to Java 21 and Spring Boot 3.5 (#$ISSUE)" \
-            --body "Draft. The modernization pipeline is running for #$ISSUE using the approved plan \`$PLAN\`. Agents push commits to the \`$BRANCH\` branch. The original Java 8 code stays on \`main\` until a human reviews and merges this pull request.
-
-          Closes #$ISSUE"
+            --body-file pr-body.md
           echo "pr_number=$(gh pr view "$BRANCH" --json number --jq .number)" >> "$GITHUB_OUTPUT"
 
       - name: Start the tracker

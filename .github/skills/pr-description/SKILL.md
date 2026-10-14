@@ -79,7 +79,30 @@ pipeline (starts on merge)
 ```
 ````
 
-Implementation pull request: show the changed paths as a diff-style tree with a few words per path (at most 12 lines, taken from `git diff --stat`), then the stage results as a text tree.
+Implementation pull request, example for issue 3. Lead with what changed and the result, then show the stages and the changed paths:
+
+````markdown
+Upgrades Asset Manager from Java 8 and Spring Boot 2.7.18 to Java 21 and Spring Boot 3.5.6, as approved in the plan for issue 3. Five files move from `javax.*` to `jakarta.*`. Tests pass on JDK 21 with no errors.
+
+```mermaid
+flowchart LR
+    A["Baseline: 4 tests, 1 error"] --> B["Build upgrade: pom.xml"]
+    B --> C["Code fixes: 5 files"]
+    C --> D["JDK 21: 4 tests, 0 errors"]
+    D --> E["Plan review: PASS"]
+```
+
+```diff
+ asset-manager/
+-  pom.xml                       java 8, boot 2.7.18
++  pom.xml                       java 21, boot 3.5.6
+   web/.../WebMvcConfig.java     jakarta.servlet
+   web/.../ImageMetadata.java    jakarta.persistence
+   worker/.../ImageMetadata.java jakarta.persistence
+```
+````
+
+Always include the Mermaid flow. Use real numbers from the tracker comment and the diff, never the example's.
 
 ## Evidence
 
@@ -87,6 +110,18 @@ Show a before and after with real values.
 
 - Plan pull request. Before: the versions and test classes you read, with file paths. After: the checks the Implementation pull request must pass, taken from the plan's Validation section. The planner does not run tests, so say that.
 - Implementation pull request. Before: the baseline test totals from the tracker comment. After: the final totals, plus the verdict of each check. If the final totals are worse than the baseline, say so first.
+- Put any check that is Not met or Cannot verify directly under the before and after, in a short list. Put the full plan-check table inside a collapsed block so the page stays short:
+
+````markdown
+<details>
+<summary>Plan checks (13 of 13 checked)</summary>
+
+| Plan check | Result |
+|---|---|
+| Java 21, Spring Boot 3.5.x | Met |
+
+</details>
+````
 
 ## Merge Danger
 
@@ -97,6 +132,16 @@ Plan pull request: two-way for code, one-way for spend. The pipeline never write
 
 Implementation pull request: two-way. Merging replaces the Java 8 code on `main` with Java 21 code, and a revert restores it. Anyone building `main` then needs JDK 21. Pick the blast radius word from what the diff shows.
 
+## Agent comments
+
+The analyst and reviewer comments on the pull request follow the same style, in a shorter form.
+
+- Start with the marker line the task names, such as `<!-- modernize:compat -->`, then one sentence with the result and a count.
+- Use at most one table, at most 8 rows. Put extra rows inside a collapsed `<details>` block.
+- Do not bold anything inside a table. Write ranks as plain words: Blocker, Change, Watch.
+- Add a small visual only when it shortens the text, such as a diff of the version changes.
+- Use sentence case headings. Follow the writing rules below.
+
 ## Writing rules
 
 - Use plain words. "Use", not "utilize". "Because", not "due to the fact that".
@@ -105,4 +150,7 @@ Implementation pull request: two-way. Merging replaces the Java 8 code on `main`
 - Sentence case headings, except the three template headings.
 - Active voice. Name who acts: "the pipeline pushes to the branch".
 - No filler such as "ensuring", "leveraging", "robust", "seamless". No closing summary.
+- No "not just X, but Y". State the point.
+- No colon as a mid-sentence connector. Use a colon only before a list or an example.
+- Use one word for one thing. Do not cycle synonyms.
 - Say what the change does, with a number or a path. Cut any sentence that could appear unchanged in another project.

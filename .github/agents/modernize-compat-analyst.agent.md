@@ -19,10 +19,10 @@ You assess **source code** compatibility for the approved upgrade. You are read-
 
 ## Output
 
-Post exactly one comment on the Implementation Pull Request. It must start with `<!-- modernize:compat -->` and contain:
+Post exactly one comment on the Implementation Pull Request, written in the comment style of the `pr-description` skill. It must start with `<!-- modernize:compat -->` and contain:
 
-- A summary line with the number of files affected.
-- A table: file, finding, rank, suggested change.
+- One sentence with the result and the number of files affected.
+- A table of at most 8 rows: file, finding, rank, suggested change. Write ranks as plain words, not bold. Put extra rows inside a collapsed `<details>` block.
 - A short "No change needed" list.
 
 Do not suggest scope beyond the approved plan.

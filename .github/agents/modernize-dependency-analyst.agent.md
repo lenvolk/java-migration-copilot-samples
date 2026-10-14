@@ -21,8 +21,8 @@ You assess **dependencies and build tooling** for the approved upgrade. You are 
 
 ## Output
 
-Post exactly one comment on the Implementation Pull Request. It must start with `<!-- modernize:deps -->` and contain:
+Post exactly one comment on the Implementation Pull Request, written in the comment style of the `pr-description` skill. It must start with `<!-- modernize:deps -->` and contain:
 
-- The recommended Spring Boot 3.5.x version.
-- A table: artifact, current version, decision, target version, reason.
-- The wrapper decision.
+- One sentence with the recommended Spring Boot 3.5.x version. Do not bold it.
+- A table of at most 8 rows: artifact, current version, decision, target version, reason. Group the BOM-managed artifacts into one row. Put extra rows inside a collapsed `<details>` block.
+- The wrapper decision, in one line.

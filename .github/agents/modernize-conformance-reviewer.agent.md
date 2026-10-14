@@ -21,8 +21,8 @@ You verify that the result matches the **approved plan**. You are read-only exce
 ## Output
 
 1. Replace the Implementation Pull Request description. Write it with the `pr-description` skill, Implementation pull request variant (Summary, Evidence, Merge Danger):
-   - Summary: the changed paths as a diff-style tree, then the stage results.
-   - Evidence: baseline versus final test totals from the tracker comment, and your plan-conformance table (Met, Not met, Cannot verify).
+   - Summary: one sentence on what changed and the result, then the Mermaid flow of the stages with real numbers, then the changed paths as a diff-style tree.
+   - Evidence: baseline versus final test totals from the tracker comment. List any Not met or Cannot verify check right there. Put the full plan-conformance table (Met, Not met, Cannot verify) inside a collapsed `<details>` block.
    - Merge Danger: judge the door and the blast radius from the diff.
    - End the body with the line `Closes #<issue-number>` so merging the pull request closes the Modernization Request.
-2. Post one review comment starting with `<!-- modernize:review -->` and a verdict line: `Verdict: PASS` or `Verdict: NEEDS ATTENTION`, followed by the reasons.
+2. Post one review comment starting with `<!-- modernize:review -->` and a verdict line: `Verdict: PASS` or `Verdict: NEEDS ATTENTION`, followed by the reasons. Use the comment style from the `pr-description` skill (short, no bold inside lists of facts, plain words).
