@@ -8,12 +8,14 @@ on:
       pr_number: { type: string, required: true }
       branch: { type: string, required: true }
       plan_path: { type: string, required: true }
+      stage: { type: string, required: false, default: "codefix" }
   workflow_dispatch:
     inputs:
       issue_number: { description: "Modernization Request issue number", type: string, required: true }
       pr_number: { description: "Implementation pull request number", type: string, required: true }
       branch: { description: "Implementation branch", type: string, required: true }
       plan_path: { description: "Approved plan path", type: string, required: true }
+      stage: { description: "Stage name. Keeps artifact names unique per worker. Leave the default.", type: string, required: false, default: "codefix" }
 
 permissions:
   contents: read

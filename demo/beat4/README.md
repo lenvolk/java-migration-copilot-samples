@@ -109,12 +109,14 @@ When the plan pull request appears in your fork on GitHub, open **Files changed*
 
 ### 4.3 Approve the plan (human gate)
 
-```powershell
-$planPr = gh pr list --search "[modernization-plan] in:title" --state open --json number --jq '.[0].number'
-gh pr merge $planPr --squash --delete-branch
-```
+Merge the plan PR into `main` of your fork. It adds only the plan file (Markdown, no code). The modernized code goes to a separate branch, `modernize/issue-<N>`, so `main` keeps the original Java 8 app.
 
-The merge starts the pipeline.
+In the GitHub UI, select **Squash and merge**, then **Confirm**. Or run:
+
+```powershell
+$planPr = gh pr list --repo lenvolk/java-migration-copilot-samples --search "[modernization-plan] in:title" --state open --json number --jq '.[0].number'
+gh pr merge $planPr --repo lenvolk/java-migration-copilot-samples --squash --delete-branch
+```
 
 ### 4.4 Watch the pipeline
 
