@@ -1,0 +1,408 @@
+name: Modernize Asset Manager - Pipeline
+
+# Stage 3 of the Beat 4 demo. Starts when a human merges the modernization plan pull request.
+# Plain GitHub Actions jobs do the deterministic work (branch, tests, checks).
+# gh-aw agent workflows (modernize-worker-*) do the judgment work and are called as reusable workflows.
+#
+#   prepare -> [ baseline-test | compat | deps ]            (parallel)
+#           -> upgrade -> codefix                            (sequential, one shared branch)
+#           -> [ verify-build | verify-static ] -> review    (parallel checks, then the review agent)
+#           -> finalize
+#
+# The tracker comment is read-modify-write, so every job that writes it is ordered by `needs`
+# (baseline-test -> track-analysis -> upgrade -> codefix -> track-build -> verify-build -> finalize).
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+    paths:
+      - "docs/modernization/requests/*.md"
+  workflow_dispatch:
+    inputs:
+      plan_path:
+        description: "Approved plan, for example docs/modernization/requests/12-asset-manager-java-upgrade.md"
+        required: true
+        type: string
+
+# One pipeline per request. A second run for the same request waits instead of cancelling.
+concurrency:
+  group: modernize-${{ github.event.pull_request.number || inputs.plan_path }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: "0 Prepare branch, draft PR, tracker"
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged == true &&
+       startsWith(github.event.pull_request.title, '[modernization-plan]'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    outputs:
+      issue_number: ${{ steps.plan.outputs.issue_number }}
+      pr_number: ${{ steps.pr.outputs.pr_number }}
+      branch: ${{ steps.plan.outputs.branch }}
+      plan_path: ${{ steps.plan.outputs.plan_path }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - name: Resolve the approved plan
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PLAN_PR: ${{ github.event.pull_request.number }}
+          PLAN_INPUT: ${{ inputs.plan_path }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            PLAN=$(gh pr view "$PLAN_PR" --json files --jq '.files[].path' | grep -E '^docs/modernization/requests/[0-9]+-.*\.md$' | head -n1 || true)
+          else
+            PLAN="$PLAN_INPUT"
+          fi
+          if ! echo "$PLAN" | grep -Eq '^docs/modernization/requests/[0-9]+-[A-Za-z0-9._-]+\.md$'; then
+            echo "::error::No valid plan file found. Expected docs/modernization/requests/<issue>-*.md, got '$PLAN'."
+            exit 1
+          fi
+          test -f "$PLAN" || { echo "::error::$PLAN is not on main."; exit 1; }
+          ISSUE=$(basename "$PLAN" | grep -oE '^[0-9]+')
+          echo "plan_path=$PLAN" >> "$GITHUB_OUTPUT"
+          echo "issue_number=$ISSUE" >> "$GITHUB_OUTPUT"
+          echo "branch=modernize/issue-$ISSUE" >> "$GITHUB_OUTPUT"
+
+      - name: Create the working branch
+        env:
+          BRANCH: ${{ steps.plan.outputs.branch }}
+          ISSUE: ${{ steps.plan.outputs.issue_number }}
+          PLAN: ${{ steps.plan.outputs.plan_path }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "::error::Branch $BRANCH already exists. Close the old pull request, delete the branch, then re-run."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          mkdir -p "docs/modernization/runs/$ISSUE"
+          printf '# Modernization run for #%s\n\n- Approved plan: `%s`\n- Pipeline run: %s\n' "$ISSUE" "$PLAN" "$RUN_URL" > "docs/modernization/runs/$ISSUE/RUN.md"
+          git add docs/modernization/runs
+          git commit -m "chore: start modernization run for #$ISSUE"
+          git push -u origin "$BRANCH"
+
+      - name: Open the draft Implementation Pull Request
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.plan.outputs.branch }}
+          ISSUE: ${{ steps.plan.outputs.issue_number }}
+          PLAN: ${{ steps.plan.outputs.plan_path }}
+        run: |
+          gh label create modernization --color 1d76db --force >/dev/null
+          gh label create ready-for-human-review --color 0e8a16 --force >/dev/null
+          gh label create needs-attention --color d93f0b --force >/dev/null
+          gh pr create --draft --base main --head "$BRANCH" --label modernization \
+            --title "[modernization] Upgrade Asset Manager to Java 21 and Spring Boot 3.5 (#$ISSUE)" \
+            --body "Draft. The modernization pipeline is running for #$ISSUE using the approved plan \`$PLAN\`. Agents push commits to the \`$BRANCH\` branch. The original Java 8 code stays on \`main\` until a human reviews and merges this pull request.
+
+          Closes #$ISSUE"
+          echo "pr_number=$(gh pr view "$BRANCH" --json number --jq .number)" >> "$GITHUB_OUTPUT"
+
+      - name: Start the tracker
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ steps.pr.outputs.pr_number }}
+          ACTOR: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Plan approved" --status done --detail "Plan merged (approved) by @$ACTOR" --run-url "$RUN_URL"
+
+  baseline-test:
+    name: "1a Baseline tests (JDK 8, main)"
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    outputs:
+      tests: ${{ steps.summary.outputs.tests }}
+      failures: ${{ steps.summary.outputs.failures }}
+      errors: ${{ steps.summary.outputs.errors }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "8"
+          cache: maven
+          cache-dependency-path: asset-manager/**/pom.xml
+      - name: Run the baseline tests
+        working-directory: asset-manager
+        run: ./mvnw -B -ntp test -Dmaven.test.failure.ignore=true
+      - name: Summarize
+        id: summary
+        run: python3 .github/scripts/surefire_summary.py asset-manager | tee -a "$GITHUB_OUTPUT"
+      - name: Record the baseline in the tracker
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ needs.prepare.outputs.pr_number }}
+          DETAIL: "${{ steps.summary.outputs.tests }} tests, ${{ steps.summary.outputs.failures }} failures, ${{ steps.summary.outputs.errors }} errors (JDK 8, main)"
+        run: python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Baseline tests" --status done --detail "$DETAIL"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: baseline-test-reports
+          path: asset-manager/**/target/surefire-reports/
+          if-no-files-found: ignore
+
+  compat:
+    name: "1b Agent - Compatibility Analyst"
+    needs: prepare
+    uses: ./.github/workflows/modernize-worker-compat.lock.yml
+    permissions:
+      actions: read
+      contents: write
+      issues: write
+      pull-requests: write
+    with:
+      issue_number: ${{ needs.prepare.outputs.issue_number }}
+      pr_number: ${{ needs.prepare.outputs.pr_number }}
+      branch: ${{ needs.prepare.outputs.branch }}
+      plan_path: ${{ needs.prepare.outputs.plan_path }}
+    secrets: inherit
+
+  deps:
+    name: "1c Agent - Dependency Analyst"
+    needs: prepare
+    uses: ./.github/workflows/modernize-worker-deps.lock.yml
+    permissions:
+      actions: read
+      contents: write
+      issues: write
+      pull-requests: write
+    with:
+      issue_number: ${{ needs.prepare.outputs.issue_number }}
+      pr_number: ${{ needs.prepare.outputs.pr_number }}
+      branch: ${{ needs.prepare.outputs.branch }}
+      plan_path: ${{ needs.prepare.outputs.plan_path }}
+    secrets: inherit
+
+  track-analysis:
+    name: "1d Tracker - analysis"
+    needs: [prepare, baseline-test, compat, deps]
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: Update the tracker
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ needs.prepare.outputs.pr_number }}
+          COMPAT: ${{ needs.compat.result }}
+          DEPS: ${{ needs.deps.result }}
+        run: |
+          s() { if [ "$1" = "success" ]; then echo done; else echo failed; fi; }
+          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Compatibility analysis" --status "$(s "$COMPAT")" --detail "Agent comment on the PR (compat)"
+          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Dependency analysis" --status "$(s "$DEPS")" --detail "Agent comment on the PR (deps)"
+
+  upgrade:
+    name: "2a Agent - Build Upgrader"
+    needs: [prepare, baseline-test, compat, deps, track-analysis]
+    uses: ./.github/workflows/modernize-worker-upgrade.lock.yml
+    permissions:
+      actions: read
+      contents: write
+      issues: write
+      pull-requests: write
+    with:
+      issue_number: ${{ needs.prepare.outputs.issue_number }}
+      pr_number: ${{ needs.prepare.outputs.pr_number }}
+      branch: ${{ needs.prepare.outputs.branch }}
+      plan_path: ${{ needs.prepare.outputs.plan_path }}
+    secrets: inherit
+
+  codefix:
+    name: "2b Agent - Code Fixer"
+    needs: [prepare, upgrade]
+    uses: ./.github/workflows/modernize-worker-codefix.lock.yml
+    permissions:
+      actions: read
+      contents: write
+      issues: write
+      pull-requests: write
+    with:
+      issue_number: ${{ needs.prepare.outputs.issue_number }}
+      pr_number: ${{ needs.prepare.outputs.pr_number }}
+      branch: ${{ needs.prepare.outputs.branch }}
+      plan_path: ${{ needs.prepare.outputs.plan_path }}
+    secrets: inherit
+
+  track-build:
+    name: "2c Tracker - build and code"
+    needs: [prepare, upgrade, codefix]
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: Update the tracker
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ needs.prepare.outputs.pr_number }}
+          UPGRADE: ${{ needs.upgrade.result }}
+          CODEFIX: ${{ needs.codefix.result }}
+        run: |
+          s() { if [ "$1" = "success" ]; then echo done; else echo failed; fi; }
+          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Build upgrade" --status "$(s "$UPGRADE")" --detail "Commit pushed by the Build Upgrader agent"
+          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Code fixes" --status "$(s "$CODEFIX")" --detail "Commits pushed by the Code Fixer agent"
+
+  verify-build:
+    name: "3a Verify - JDK 21 build and tests"
+    needs: [prepare, baseline-test, codefix, track-build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.branch }}
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          path: main-scripts
+          sparse-checkout: .github/scripts
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: asset-manager/**/pom.xml
+      - name: Build, test, and package
+        working-directory: asset-manager
+        run: |
+          ./mvnw -B -ntp clean test -Dmaven.test.failure.ignore=true
+          ./mvnw -B -ntp -DskipTests package
+          ls web/target/*.jar worker/target/*.jar
+      - name: Summarize and compare with the baseline
+        id: summary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ needs.prepare.outputs.pr_number }}
+          BASE_TESTS: ${{ needs.baseline-test.outputs.tests }}
+          BASE_FAIL: ${{ needs.baseline-test.outputs.failures }}
+          BASE_ERR: ${{ needs.baseline-test.outputs.errors }}
+        run: |
+          python3 main-scripts/.github/scripts/surefire_summary.py asset-manager | tee summary.txt
+          T=$(grep '^tests=' summary.txt | cut -d= -f2); F=$(grep '^failures=' summary.txt | cut -d= -f2); E=$(grep '^errors=' summary.txt | cut -d= -f2)
+          DETAIL="JDK 21: $T tests, $F failures, $E errors. Baseline: $BASE_TESTS tests, $BASE_FAIL failures, $BASE_ERR errors."
+          if [ $((F + E)) -le $((BASE_FAIL + BASE_ERR)) ] && [ "$T" -ge "$BASE_TESTS" ]; then STATUS=done; else STATUS=failed; fi
+          python3 main-scripts/.github/scripts/modernize_tracker.py --pr "$PR" --stage "Build and test verification" --status "$STATUS" --detail "$DETAIL"
+          echo "$DETAIL"
+          [ "$STATUS" = "done" ]
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verify-test-reports
+          path: asset-manager/**/target/surefire-reports/
+          if-no-files-found: ignore
+
+  verify-static:
+    name: "3b Verify - versions and namespaces"
+    needs: [prepare, codefix]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.branch }}
+      - name: Check versions and Jakarta namespaces
+        run: |
+          fail=0
+          BOOT=$(sed -n '/<artifactId>spring-boot-starter-parent<\/artifactId>/,/<\/parent>/p' asset-manager/pom.xml | grep -oE '<version>[^<]+' | head -n1 | cut -d'>' -f2)
+          JAVA=$(grep -oE '<java.version>[^<]+' asset-manager/pom.xml | head -n1 | cut -d'>' -f2)
+          echo "Spring Boot parent: $BOOT, java.version: $JAVA"
+          case "$BOOT" in 3.5.*) ;; *) echo "::error::Spring Boot parent must be 3.5.x"; fail=1 ;; esac
+          [ "$JAVA" = "21" ] || { echo "::error::java.version must be 21"; fail=1; }
+          if grep -rnE --include='*.java' 'import javax\.(persistence|annotation|servlet|validation)' asset-manager; then
+            echo "::error::Remaining javax imports must be jakarta"; fail=1
+          fi
+          # javax.imageio ships in the JDK and must stay unchanged
+          grep -rq --include='*.java' 'import jakarta\.imageio' asset-manager && { echo "::error::javax.imageio must not be renamed"; fail=1; }
+          exit $fail
+
+  review:
+    name: "4 Agent - Plan-Conformance Reviewer"
+    needs: [prepare, codefix, verify-build, verify-static]
+    if: always() && needs.prepare.result == 'success' && needs.codefix.result == 'success'
+    uses: ./.github/workflows/modernize-worker-review.lock.yml
+    permissions:
+      actions: read
+      contents: write
+      issues: write
+      pull-requests: write
+    with:
+      issue_number: ${{ needs.prepare.outputs.issue_number }}
+      pr_number: ${{ needs.prepare.outputs.pr_number }}
+      branch: ${{ needs.prepare.outputs.branch }}
+      plan_path: ${{ needs.prepare.outputs.plan_path }}
+    secrets: inherit
+
+  finalize:
+    name: "5 Hand off to the human reviewer"
+    needs: [prepare, verify-build, verify-static, review]
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: Mark ready or flag attention
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ needs.prepare.outputs.pr_number }}
+          BUILD: ${{ needs.verify-build.result }}
+          STATIC: ${{ needs.verify-static.result }}
+          REVIEW: ${{ needs.review.result }}
+        run: |
+          gh label create ready-for-human-review --color 0e8a16 --force >/dev/null
+          gh label create needs-attention --color d93f0b --force >/dev/null
+          if [ "$BUILD" = "success" ] && [ "$STATIC" = "success" ] && [ "$REVIEW" = "success" ]; then
+            gh pr ready "$PR"
+            gh pr edit "$PR" --add-label ready-for-human-review
+            python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Plan-conformance review" --status done --detail "Reviewer agent comment on the PR"
+            python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Human review" --status attention --detail "Ready: review the pull request and merge when satisfied"
+          else
+            gh pr edit "$PR" --add-label needs-attention
+            python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Plan-conformance review" --status failed --detail "Review result: $REVIEW"
+            python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Human review" --status failed --detail "Not ready. Re-run the failed stage from the Actions run."
+            echo "::error::Pipeline is not green (build=$BUILD static=$STATIC review=$REVIEW)."
+            exit 1
+          fi
