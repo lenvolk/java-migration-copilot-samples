@@ -15,11 +15,13 @@ engine: copilot
 
 skills:
   - .github/skills/java-modernization
+  - .github/skills/pr-description
 
 safe-outputs:
   create-pull-request:
     title-prefix: "[modernization-plan] "
     draft: false
+    auto-close-issue: false
     max: 1
 ---
 
@@ -49,11 +51,12 @@ Create a human-reviewable modernization plan for the Asset Manager application. 
 ## Pull request
 
 - Title: `Plan Asset Manager Java modernization for #<issue-number>`
-- Body:
-  - Link to the triggering issue.
-  - State the verified source and target versions.
-  - Explain that merging this pull request is the explicit human approval that starts the modernization pipeline.
-  - State that application code is unchanged by this pull request.
+- Body: write it with the `pr-description` skill, plan pull request variant. It has three sections: Summary, Evidence, Merge Danger.
+  - Summary: the flow diagram, the version diff, and the execution tree. Take every version and count from the files you read.
+  - Evidence: the verified baseline with file paths, and the checks the Implementation pull request must pass.
+  - Merge Danger: merging is the explicit human approval that starts the `Modernize Asset Manager - Pipeline` workflow. Application code is unchanged by this pull request.
+  - Link the Modernization Request by number in the first sentence. Do not close it: it stays open until the Implementation pull request merges.
+  - Follow the writing rules in the skill.
 
 ## Guardrails
 

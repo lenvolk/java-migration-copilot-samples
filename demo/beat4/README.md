@@ -96,6 +96,8 @@ The compile step takes about a minute. The script ends with a table. Every row m
 .\demo\beat4\new-request.ps1
 ```
 
+The planner agent, [modernize-1-plan.md](../../.github/workflows/modernize-1-plan.md), waits for an issue that starts with `/modernize-plan` (its `slash_command` trigger, lines 5-7). `new-request.ps1` puts that line first in the issue body.
+
 ### 4.2 Watch the planner and review the plan
 
 ```powershell
@@ -103,7 +105,7 @@ gh run list --workflow modernize-1-plan.lock.yml --limit 3
 gh pr list --search "[modernization-plan] in:title"
 ```
 
-When the plan pull request appears, open it and review `docs/modernization/requests/<N>-asset-manager-java-upgrade.md`. Check that it has the Java 8 / Spring Boot 2.7 baseline, the Java 21 / Spring Boot 3.5 target, the execution steps, and the exclusions (no Azure, containers or deployment).
+When the plan pull request appears in your fork on GitHub, open **Files changed** and review `docs/modernization/requests/<N>-asset-manager-java-upgrade.md`. It is the only file in that PR, and the folder does not exist on `main` until the plan is merged. Check that it has the Java 8 / Spring Boot 2.7 baseline, the Java 21 / Spring Boot 3.5 target, the execution steps, and the exclusions (no Azure, containers or deployment).
 
 ### 4.3 Approve the plan (human gate)
 

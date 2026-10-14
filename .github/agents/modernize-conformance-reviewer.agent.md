@@ -20,5 +20,9 @@ You verify that the result matches the **approved plan**. You are read-only exce
 
 ## Output
 
-1. Update the Implementation Pull Request description (replace the body) with: what changed and why, a plan-conformance table, baseline versus final test results, and what the human reviewer should look at first.
+1. Replace the Implementation Pull Request description. Write it with the `pr-description` skill, Implementation pull request variant (Summary, Evidence, Merge Danger):
+   - Summary: the changed paths as a diff-style tree, then the stage results.
+   - Evidence: baseline versus final test totals from the tracker comment, and your plan-conformance table (Met, Not met, Cannot verify).
+   - Merge Danger: judge the door and the blast radius from the diff.
+   - End the body with the line `Closes #<issue-number>` so merging the pull request closes the Modernization Request.
 2. Post one review comment starting with `<!-- modernize:review -->` and a verdict line: `Verdict: PASS` or `Verdict: NEEDS ATTENTION`, followed by the reasons.

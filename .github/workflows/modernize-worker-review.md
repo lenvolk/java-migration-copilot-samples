@@ -33,6 +33,7 @@ imports:
 
 skills:
   - .github/skills/java-upgrade-rules
+  - .github/skills/pr-description
 
 checkout:
   ref: ${{ inputs.branch }}
