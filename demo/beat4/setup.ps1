@@ -88,6 +88,11 @@ if ($repo.nameWithOwner -eq $Upstream) { Stop-Setup "origin points at the upstre
 if (-not $repo.isFork) { Stop-Setup "$target is not a fork." }
 Add-Result 'Target repository' 'OK' "$target (fork of $($repo.parent.owner.login)/$($repo.parent.name))"
 
+# With two remotes (origin and upstream) gh asks "Select a repo" on many commands. Pin the default to the fork (local setting only).
+$default = Invoke-Native { gh repo set-default $target }
+if ($default.Ok) { Add-Result 'gh default repository' 'OK' "$target (no more 'Select a repo' prompts)" }
+else { Add-Result 'gh default repository' 'MANUAL' "Run: gh repo set-default $target" }
+
 # 4. Fork settings (forks start with Issues and Actions turned off)
 if ($CheckOnly) {
   $state = if ($repo.hasIssuesEnabled) { 'OK' } else { 'MANUAL' }

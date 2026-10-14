@@ -193,8 +193,9 @@ Keep your pre-run until after the customer meeting. Merged plan files stay on `m
 | Symptom | Fix |
 |---|---|
 | `setup.ps1` reports `Issues - MANUAL` or `Actions - MANUAL` | Enable them in the fork's Settings, then re-run. Forks start with both off |
+| `gh` asks "Select a repo" (Multiple remotes detected) | Choose `lenvolk/java-migration-copilot-samples` (your fork), never `Azure-Samples/...`. `setup.ps1` runs `gh repo set-default` so `gh workflow`, `gh run` and `gh pr` stop asking. `gh secret` always needs `--repo`: `gh secret list --repo lenvolk/java-migration-copilot-samples` |
 | `/modernize-plan` does nothing | The issue body must start with `/modernize-plan`. Confirm Actions is enabled and `COPILOT_GITHUB_TOKEN` is set |
-| Run fails on the Copilot token | Use a fine-grained `github_pat_` token owned by your user account (not an organization) with **Account permissions: Copilot Requests: Read**. Re-run `gh secret set COPILOT_GITHUB_TOKEN` |
+| Run fails on the Copilot token | Use a fine-grained `github_pat_` token owned by your user account (not an organization) with **Account permissions: Copilot Requests: Read**. Re-run `gh secret set COPILOT_GITHUB_TOKEN --repo lenvolk/java-migration-copilot-samples` |
 | Plan PR is not created | Settings > Actions > General > Allow GitHub Actions to create and approve pull requests |
 | Pipeline did not start after the merge | The plan PR title must start with `[modernization-plan]` and change a file under `docs/modernization/requests/`. Otherwise dispatch it (see Recovery) |
 | `Branch modernize/issue-<N> already exists` | Run `reset.ps1 -CloseRun <N>` or delete the branch, then re-run |
@@ -206,7 +207,7 @@ Keep your pre-run until after the customer meeting. Merged plan files stay on `m
 
 | Path | Purpose |
 |---|---|
-| `demo/beat4/setup.ps1` | One-time setup and checks |
+| `demo/beat4/setup.ps1` | One-time setup and checks. Also pins the `gh` default repository to your fork |
 | `demo/beat4/new-request.ps1` | Creates the Modernization Request issue |
 | `demo/beat4/reset.ps1` | Lists or clears a run |
 | `demo/beat4/modernization-request.md` | Issue body used by `new-request.ps1` |
