@@ -58,15 +58,19 @@ Every command below runs from this folder.
 
 The agents call Copilot with a token you own.
 
-1. Open <https://github.com/settings/personal-access-tokens/new>.
-2. **Token name**: `Beat 4 gh-aw`.
-3. **Resource owner**: the account that has your Copilot license.
-4. **Repository access**: **Only select repositories**, then select `java-migration-copilot-samples` (your fork).
-5. **Account permissions**: set **Copilot Requests** to **Read**.
-6. Choose a short expiration and select **Generate token**.
-7. Copy it. It must start with `github_pat_`. A classic `ghp_` token does not work.
+1. Open this gh-aw link. It pre-fills the token name and the **Copilot Requests** permission, so you do not have to find it in the dropdown:
 
-Do not give this token repository write permissions. Actions uses its own token to write to the repository.
+   <https://github.com/settings/personal-access-tokens/new?name=COPILOT_GITHUB_TOKEN&description=GitHub+Agentic+Workflows+-+Copilot+engine+authentication&user_copilot_requests=read>
+
+2. **Resource owner**: your **personal user account**, not an organization. The Copilot Requests permission is not offered for organization-owned tokens. The account needs an active Copilot license.
+3. **Repository access**: **Only select repositories**, then select `java-migration-copilot-samples` (your fork).
+4. Open **Permissions** and select the **Account** tab (not **Repositories**). Confirm **Copilot Requests** is listed with access **Read**.
+
+   If it is not listed: with the **Account** tab active, select **Add permissions**, search for `Copilot`, and tick **Copilot Requests**. On the **Repositories** tab the search only shows repository permissions such as "Copilot agent settings", which is the wrong one.
+5. Choose a short expiration and select **Generate token**.
+6. Copy it. It must start with `github_pat_`. A classic `ghp_` token does not work.
+
+Do not give this token repository permissions. Actions uses its own token to write to the repository.
 
 ## Step 3 - Run the setup script
 
@@ -190,7 +194,7 @@ Keep your pre-run until after the customer meeting. Merged plan files stay on `m
 |---|---|
 | `setup.ps1` reports `Issues - MANUAL` or `Actions - MANUAL` | Enable them in the fork's Settings, then re-run. Forks start with both off |
 | `/modernize-plan` does nothing | The issue body must start with `/modernize-plan`. Confirm Actions is enabled and `COPILOT_GITHUB_TOKEN` is set |
-| Run fails on the Copilot token | Use a fine-grained `github_pat_` token with **Copilot Requests: Read**. Re-run `gh secret set COPILOT_GITHUB_TOKEN` |
+| Run fails on the Copilot token | Use a fine-grained `github_pat_` token owned by your user account (not an organization) with **Account permissions: Copilot Requests: Read**. Re-run `gh secret set COPILOT_GITHUB_TOKEN` |
 | Plan PR is not created | Settings > Actions > General > Allow GitHub Actions to create and approve pull requests |
 | Pipeline did not start after the merge | The plan PR title must start with `[modernization-plan]` and change a file under `docs/modernization/requests/`. Otherwise dispatch it (see Recovery) |
 | `Branch modernize/issue-<N> already exists` | Run `reset.ps1 -CloseRun <N>` or delete the branch, then re-run |
