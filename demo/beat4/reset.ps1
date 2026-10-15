@@ -64,12 +64,13 @@ if (-not $Force) {
 }
 
 foreach ($pr in $prs) {
-  gh pr close $pr.number --repo $target --comment 'Closed by reset.ps1 to rerun the demo.' | Out-Null
+  # No --comment: a comment would fire the planner's issue_comment trigger and create new runs.
+  gh pr close $pr.number --repo $target 2>&1 | Out-Null
   Write-Host "Closed PR #$($pr.number)"
 }
 
 foreach ($issue in $issues) {
-  gh issue close $issue.number --repo $target --reason 'not planned' --comment 'Closed by reset.ps1 to rerun the demo.' | Out-Null
+  gh issue close $issue.number --repo $target --reason 'not planned' 2>&1 | Out-Null
   Write-Host "Closed issue #$($issue.number)"
 }
 
@@ -78,6 +79,9 @@ foreach ($branch in $branches) {
   if ($LASTEXITCODE -ne 0) { Write-Warning "Could not delete branch $branch" } else { Write-Host "Deleted branch $branch" }
 }
 
+# Re-list after a pause so runs triggered by the steps above are deleted too.
+Start-Sleep -Seconds 15
+$runs = @(gh run list --repo $target --limit 1000 --json databaseId,status | ConvertFrom-Json | ForEach-Object { $_ })
 foreach ($run in $runs) {
   if ($run.status -ne 'completed') {
     gh run cancel $run.databaseId --repo $target 2>$null | Out-Null
