@@ -185,12 +185,15 @@ Each stage is its own job or workflow, so a failure stops the pipeline at that s
 
 ## Reset
 
+Closes all open issues and PRs, deletes every branch except `main`, and deletes all workflow runs. Merged plans on `main` stay.
+
 ```powershell
-.\demo\beat4\reset.ps1                  # lists runs, deletes nothing
-.\demo\beat4\reset.ps1 -CloseRun <N>    # closes the PR and deletes modernize/issue-<N>
+cd C:\Temp\GHDemo\JavaModernization\java-migration-copilot-samples
+.\demo\beat4\reset.ps1          # preview, changes nothing
+.\demo\beat4\reset.ps1 -Full    # reset; type the repo name to confirm
 ```
 
-Keep your pre-run until after the customer meeting. Merged plan files stay on `main`; each new request has its own issue number.
+Keep your pre-run until after the customer meeting.
 
 ## Troubleshooting
 
@@ -202,7 +205,7 @@ Keep your pre-run until after the customer meeting. Merged plan files stay on `m
 | Run fails on the Copilot token | Use a fine-grained `github_pat_` token owned by your user account (not an organization) with **Account permissions: Copilot Requests: Read**. Re-run `gh secret set COPILOT_GITHUB_TOKEN --repo lenvolk/java-migration-copilot-samples` |
 | Plan PR is not created | Settings > Actions > General > Allow GitHub Actions to create and approve pull requests |
 | Pipeline did not start after the merge | The plan PR title must start with `[modernization-plan]` and change a file under `docs/modernization/requests/`. Otherwise dispatch it (see Recovery) |
-| `Branch modernize/issue-<N> already exists` | Run `reset.ps1 -CloseRun <N>` or delete the branch, then re-run |
+| `Branch modernize/issue-<N> already exists` | Run `reset.ps1 -Full`, then create a new request |
 | `verify-build` fails on tests | Compare with the baseline in the tracker comment. Re-run the Code Fixer |
 | Agent cannot download Maven dependencies | The workflow allows the `java` network ecosystem. Check the agent log for a blocked domain and add it under `network.allowed` in the worker `.md`, then recompile |
 | An agent's comment shows another agent's content, or `safe_outputs` fails with `No handler loaded for type` | Artifact name collision. Each worker needs a unique `stage` input (already set). If you add a worker, give it its own default |
@@ -214,7 +217,7 @@ Keep your pre-run until after the customer meeting. Merged plan files stay on `m
 |---|---|
 | `demo/beat4/setup.ps1` | One-time setup and checks. Also pins the `gh` default repository to your fork |
 | `demo/beat4/new-request.ps1` | Creates the Modernization Request issue |
-| `demo/beat4/reset.ps1` | Lists or clears a run |
+| `demo/beat4/reset.ps1` | Previews or fully resets the fork (keeps `main`) |
 | `demo/beat4/modernization-request.md` | Issue body used by `new-request.ps1` |
 | `.github/workflows/modernize-1-plan.md` | Planner agent workflow (Stage 2) |
 | `.github/workflows/modernize-pipeline.yml` | Orchestrating pipeline (Stage 3) |
