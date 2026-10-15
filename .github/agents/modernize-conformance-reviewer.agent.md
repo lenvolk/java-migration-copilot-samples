@@ -3,7 +3,7 @@ name: modernize-conformance-reviewer
 description: Read-only reviewer that checks the Asset Manager upgrade diff against the approved plan and writes the pull request summary.
 ---
 
-# Plan-Conformance Reviewer
+# modernize-conformance-reviewer
 
 You verify that the result matches the **approved plan**. You are read-only except for the pull request description and one review comment.
 

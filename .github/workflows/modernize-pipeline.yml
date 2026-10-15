@@ -1,16 +1,17 @@
-name: Modernize Asset Manager - Pipeline
+name: modernize-pipeline
 
 # Stage 3 of the Beat 4 demo. Starts when a human merges the modernization plan pull request.
 # Plain GitHub Actions jobs do the deterministic work (branch, tests, checks).
-# gh-aw agent workflows (modernize-worker-*) do the judgment work and are called as reusable workflows.
+# gh-aw agent workflows (modernize-*-analyst, -build-upgrader, -code-fixer, -conformance-reviewer)
+# do the judgment work and are called as reusable workflows. Job id = workflow file name = agent name.
 #
-#   prepare -> [ baseline-test | compat | deps ]            (parallel)
-#           -> upgrade -> codefix                            (sequential, one shared branch)
-#           -> [ verify-build | verify-static ] -> review    (parallel checks, then the review agent)
+#   prepare -> [ baseline-test | modernize-compat-analyst | modernize-dependency-analyst ]  (parallel)
+#           -> modernize-build-upgrader -> modernize-code-fixer          (sequential, one shared branch)
+#           -> [ verify-build | verify-static ] -> modernize-conformance-reviewer
 #           -> finalize
 #
 # The tracker comment is read-modify-write, so every job that writes it is ordered by `needs`
-# (baseline-test -> track-analysis -> upgrade -> codefix -> track-build -> verify-build -> finalize).
+# (baseline-test -> track-analysis -> modernize-build-upgrader -> modernize-code-fixer -> track-build -> verify-build -> finalize).
 
 on:
   pull_request:
@@ -35,7 +36,6 @@ permissions:
 
 jobs:
   prepare:
-    name: "0 Prepare branch, draft PR, tracker"
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.pull_request.merged == true &&
@@ -116,12 +116,12 @@ jobs:
 
           ```mermaid
           flowchart LR
-              A["Plan merged: issue __ISSUE__"] --> B["Analysis: 3 in parallel"]
-              B --> C["Build upgrade"]
-              C --> D["Code fixes"]
-              D --> E["Verify build and versions"]
-              E --> F["Plan review"]
-              F --> G["Ready for human review"]
+              A["prepare"] --> B["baseline-test<br/>modernize-compat-analyst<br/>modernize-dependency-analyst"]
+              B --> C["modernize-build-upgrader"]
+              C --> D["modernize-code-fixer"]
+              D --> E["verify-build<br/>verify-static"]
+              E --> F["modernize-conformance-reviewer"]
+              F --> G["finalize: human review"]
           ```
 
           ## Evidence
@@ -154,7 +154,6 @@ jobs:
         run: python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Plan approved" --status done --detail "Plan merged (approved) by @$ACTOR" --run-url "$RUN_URL"
 
   baseline-test:
-    name: "1a Baseline tests (JDK 8, main)"
     needs: prepare
     runs-on: ubuntu-latest
     permissions:
@@ -194,10 +193,9 @@ jobs:
           path: asset-manager/**/target/surefire-reports/
           if-no-files-found: ignore
 
-  compat:
-    name: "1b Agent - Compatibility Analyst"
+  modernize-compat-analyst:
     needs: prepare
-    uses: ./.github/workflows/modernize-worker-compat.lock.yml
+    uses: ./.github/workflows/modernize-compat-analyst.lock.yml
     permissions:
       actions: read
       contents: write
@@ -210,10 +208,9 @@ jobs:
       plan_path: ${{ needs.prepare.outputs.plan_path }}
     secrets: inherit
 
-  deps:
-    name: "1c Agent - Dependency Analyst"
+  modernize-dependency-analyst:
     needs: prepare
-    uses: ./.github/workflows/modernize-worker-deps.lock.yml
+    uses: ./.github/workflows/modernize-dependency-analyst.lock.yml
     permissions:
       actions: read
       contents: write
@@ -227,8 +224,7 @@ jobs:
     secrets: inherit
 
   track-analysis:
-    name: "1d Tracker - analysis"
-    needs: [prepare, baseline-test, compat, deps]
+    needs: [prepare, baseline-test, modernize-compat-analyst, modernize-dependency-analyst]
     if: always() && needs.prepare.result == 'success'
     runs-on: ubuntu-latest
     permissions:
@@ -243,17 +239,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ needs.prepare.outputs.pr_number }}
-          COMPAT: ${{ needs.compat.result }}
-          DEPS: ${{ needs.deps.result }}
+          COMPAT: ${{ needs.modernize-compat-analyst.result }}
+          DEPS: ${{ needs.modernize-dependency-analyst.result }}
         run: |
           s() { if [ "$1" = "success" ]; then echo done; else echo failed; fi; }
-          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Compatibility analysis" --status "$(s "$COMPAT")" --detail "Agent comment on the PR (compat)"
-          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Dependency analysis" --status "$(s "$DEPS")" --detail "Agent comment on the PR (deps)"
+          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Compatibility analysis" --status "$(s "$COMPAT")" --detail "Comment on the PR from modernize-compat-analyst"
+          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Dependency analysis" --status "$(s "$DEPS")" --detail "Comment on the PR from modernize-dependency-analyst"
 
-  upgrade:
-    name: "2a Agent - Build Upgrader"
-    needs: [prepare, baseline-test, compat, deps, track-analysis]
-    uses: ./.github/workflows/modernize-worker-upgrade.lock.yml
+  modernize-build-upgrader:
+    needs: [prepare, baseline-test, modernize-compat-analyst, modernize-dependency-analyst, track-analysis]
+    uses: ./.github/workflows/modernize-build-upgrader.lock.yml
     permissions:
       actions: read
       contents: write
@@ -266,10 +261,9 @@ jobs:
       plan_path: ${{ needs.prepare.outputs.plan_path }}
     secrets: inherit
 
-  codefix:
-    name: "2b Agent - Code Fixer"
-    needs: [prepare, upgrade]
-    uses: ./.github/workflows/modernize-worker-codefix.lock.yml
+  modernize-code-fixer:
+    needs: [prepare, modernize-build-upgrader]
+    uses: ./.github/workflows/modernize-code-fixer.lock.yml
     permissions:
       actions: read
       contents: write
@@ -283,8 +277,7 @@ jobs:
     secrets: inherit
 
   track-build:
-    name: "2c Tracker - build and code"
-    needs: [prepare, upgrade, codefix]
+    needs: [prepare, modernize-build-upgrader, modernize-code-fixer]
     if: always() && needs.prepare.result == 'success'
     runs-on: ubuntu-latest
     permissions:
@@ -299,16 +292,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ needs.prepare.outputs.pr_number }}
-          UPGRADE: ${{ needs.upgrade.result }}
-          CODEFIX: ${{ needs.codefix.result }}
+          UPGRADE: ${{ needs.modernize-build-upgrader.result }}
+          CODEFIX: ${{ needs.modernize-code-fixer.result }}
         run: |
           s() { if [ "$1" = "success" ]; then echo done; else echo failed; fi; }
-          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Build upgrade" --status "$(s "$UPGRADE")" --detail "Commit pushed by the Build Upgrader agent"
-          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Code fixes" --status "$(s "$CODEFIX")" --detail "Commits pushed by the Code Fixer agent"
+          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Build upgrade" --status "$(s "$UPGRADE")" --detail "Commit pushed by modernize-build-upgrader"
+          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Code fixes" --status "$(s "$CODEFIX")" --detail "Commits pushed by modernize-code-fixer"
 
   verify-build:
-    name: "3a Verify - JDK 21 build and tests"
-    needs: [prepare, baseline-test, codefix, track-build]
+    needs: [prepare, baseline-test, modernize-code-fixer, track-build]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -359,8 +351,7 @@ jobs:
           if-no-files-found: ignore
 
   verify-static:
-    name: "3b Verify - versions and namespaces"
-    needs: [prepare, codefix]
+    needs: [prepare, modernize-code-fixer]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -383,11 +374,10 @@ jobs:
           grep -rq --include='*.java' 'import jakarta\.imageio' asset-manager && { echo "::error::javax.imageio must not be renamed"; fail=1; }
           exit $fail
 
-  review:
-    name: "4 Agent - Plan-Conformance Reviewer"
-    needs: [prepare, codefix, verify-build, verify-static]
-    if: always() && needs.prepare.result == 'success' && needs.codefix.result == 'success'
-    uses: ./.github/workflows/modernize-worker-review.lock.yml
+  modernize-conformance-reviewer:
+    needs: [prepare, modernize-code-fixer, verify-build, verify-static]
+    if: always() && needs.prepare.result == 'success' && needs.modernize-code-fixer.result == 'success'
+    uses: ./.github/workflows/modernize-conformance-reviewer.lock.yml
     permissions:
       actions: read
       contents: write
@@ -401,8 +391,7 @@ jobs:
     secrets: inherit
 
   finalize:
-    name: "5 Hand off to the human reviewer"
-    needs: [prepare, verify-build, verify-static, review]
+    needs: [prepare, verify-build, verify-static, modernize-conformance-reviewer]
     if: always() && needs.prepare.result == 'success'
     runs-on: ubuntu-latest
     permissions:
@@ -419,14 +408,14 @@ jobs:
           PR: ${{ needs.prepare.outputs.pr_number }}
           BUILD: ${{ needs.verify-build.result }}
           STATIC: ${{ needs.verify-static.result }}
-          REVIEW: ${{ needs.review.result }}
+          REVIEW: ${{ needs.modernize-conformance-reviewer.result }}
         run: |
           gh label create ready-for-human-review --color 0e8a16 --force >/dev/null
           gh label create needs-attention --color d93f0b --force >/dev/null
           if [ "$BUILD" = "success" ] && [ "$STATIC" = "success" ] && [ "$REVIEW" = "success" ]; then
             gh pr ready "$PR"
             gh pr edit "$PR" --add-label ready-for-human-review
-            python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Plan-conformance review" --status done --detail "Reviewer agent comment on the PR"
+            python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Plan-conformance review" --status done --detail "Comment on the PR from modernize-conformance-reviewer"
             python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Human review" --status attention --detail "Ready: review the pull request and merge when satisfied"
           else
             gh pr edit "$PR" --add-label needs-attention

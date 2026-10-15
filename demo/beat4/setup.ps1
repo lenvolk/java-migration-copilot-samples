@@ -188,9 +188,10 @@ else {
 # 9. Verify GitHub sees the workflows
 Start-Sleep -Seconds 5
 $names = gh workflow list --repo $target --json name | ConvertFrom-Json | ForEach-Object { $_.name }
-$missing = @('Modernize Asset Manager - Pipeline') | Where-Object { $names -notcontains $_ }
-if ($missing) { Add-Result 'Workflows registered' 'MANUAL' 'not visible yet. Wait a minute and run: gh workflow list' }
-else { Add-Result 'Workflows registered' 'OK' "$($names.Count) workflows visible in Actions" }
+$expected = @('modernize-pipeline', 'modernize-planner', 'modernize-compat-analyst', 'modernize-dependency-analyst', 'modernize-build-upgrader', 'modernize-code-fixer', 'modernize-conformance-reviewer')
+$missing = $expected | Where-Object { $names -notcontains $_ }
+if ($missing) { Add-Result 'Workflows registered' 'MANUAL' "not visible yet: $($missing -join ', '). Wait a minute and run: gh workflow list" }
+else { Add-Result 'Workflows registered' 'OK' "all $($expected.Count) modernize-* workflows visible in Actions" }
 
 Write-Host ''
 Write-Host '=== Summary ===' -ForegroundColor White

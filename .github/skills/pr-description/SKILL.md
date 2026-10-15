@@ -50,7 +50,7 @@ Plan for issue 1: upgrade Asset Manager from Java 8 and Spring Boot 2.7 to Java 
 ```mermaid
 flowchart LR
     A["Request: issue 1"] --> B["This PR: the plan"]
-    B -- "merge = approval" --> C["Pipeline: agents and checks"]
+    B -- "merge = approval" --> C["modernize-pipeline: agents and checks"]
     C --> D["Draft Implementation PR"]
     D -- "human review" --> E["main"]
 ```
@@ -68,14 +68,14 @@ What the plan proposes to change later, not in this pull request:
 ```
 
 ```text
-pipeline (starts on merge)
-  baseline tests, JDK 8         in parallel
-  compat-analyst                in parallel
-  dependency-analyst            in parallel
-  build-upgrader
-    code-fixer
-  verify build and versions     in parallel
-  conformance-reviewer
+modernize-pipeline (starts on merge)
+  baseline-test, JDK 8               in parallel
+  modernize-compat-analyst           in parallel
+  modernize-dependency-analyst       in parallel
+  modernize-build-upgrader
+    modernize-code-fixer
+  verify-build, verify-static        in parallel
+  modernize-conformance-reviewer
 ```
 ````
 
@@ -86,10 +86,10 @@ Upgrades Asset Manager from Java 8 and Spring Boot 2.7.18 to Java 21 and Spring 
 
 ```mermaid
 flowchart LR
-    A["Baseline: 4 tests, 1 error"] --> B["Build upgrade: pom.xml"]
-    B --> C["Code fixes: 5 files"]
-    C --> D["JDK 21: 4 tests, 0 errors"]
-    D --> E["Plan review: PASS"]
+    A["baseline-test: 4 tests, 1 error"] --> B["modernize-build-upgrader: pom.xml"]
+    B --> C["modernize-code-fixer: 5 files"]
+    C --> D["verify-build, JDK 21: 4 tests, 0 errors"]
+    D --> E["modernize-conformance-reviewer: PASS"]
 ```
 
 ```diff

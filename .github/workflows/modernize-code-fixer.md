@@ -1,5 +1,5 @@
 ---
-description: Worker - read-only analysis of source compatibility for the Asset Manager upgrade.
+description: Worker - fixes Asset Manager source and tests until it builds and tests on JDK 21 with Spring Boot 3.5.
 
 on:
   workflow_call:
@@ -8,14 +8,14 @@ on:
       pr_number: { type: string, required: true }
       branch: { type: string, required: true }
       plan_path: { type: string, required: true }
-      stage: { type: string, required: false, default: "compat" }
+      stage: { type: string, required: false, default: "modernize-code-fixer" }
   workflow_dispatch:
     inputs:
       issue_number: { description: "Modernization Request issue number", type: string, required: true }
       pr_number: { description: "Implementation pull request number", type: string, required: true }
       branch: { description: "Implementation branch", type: string, required: true }
       plan_path: { description: "Approved plan path", type: string, required: true }
-      stage: { description: "Stage name. Keeps artifact names unique per worker. Leave the default.", type: string, required: false, default: "compat" }
+      stage: { description: "Stage name. Keeps artifact names unique per worker. Leave the default.", type: string, required: false, default: "modernize-code-fixer" }
 
 permissions:
   contents: read
@@ -25,40 +25,51 @@ permissions:
 engine:
   id: copilot
   concurrency:
-    group: "gh-aw-copilot-modernize-compat-${{ inputs.issue_number }}"
+    group: "gh-aw-copilot-modernize-code-fixer-${{ inputs.issue_number }}"
 
 concurrency:
   job-discriminator: ${{ inputs.issue_number }}
 
 imports:
-  - ../agents/modernize-compat-analyst.agent.md
+  - ../agents/modernize-code-fixer.agent.md
 
 skills:
   - .github/skills/java-upgrade-rules
-  - .github/skills/pr-description
 
 checkout:
   ref: ${{ inputs.branch }}
 
+runtimes:
+  java:
+    version: "21"
+
+network:
+  allowed: [defaults, java]
+
 tools:
   github:
     toolsets: [pull_requests]
-  bash: ["cat", "ls", "grep", "find", "head", "wc", "sort", "uniq"]
+  edit:
+  bash: ["cat", "ls", "grep", "find", "head", "tail", "wc", "sed", "./asset-manager/mvnw", "mvn", "java"]
 
 safe-outputs:
-  add-comment:
+  push-to-pull-request-branch:
     target: "*"
+    required-title-prefix: "[modernization] "
+    if-no-changes: error
+    protected-files: allowed
+    fallback-as-pull-request: false
     max: 1
 
-timeout-minutes: 20
+timeout-minutes: 45
 ---
 
-# Compatibility Analyst run
+# modernize-code-fixer
 
-Run the Compatibility Analyst role for this task.
+Run the `modernize-code-fixer` agent role for this task.
 
 - Modernization Request issue: #${{ inputs.issue_number }}
 - Implementation pull request: #${{ inputs.pr_number }} (branch `${{ inputs.branch }}`)
 - Approved plan: `${{ inputs.plan_path }}`
 
-Post your single comment on pull request #${{ inputs.pr_number }}.
+Push your commits to pull request #${{ inputs.pr_number }}.

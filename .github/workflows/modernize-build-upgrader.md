@@ -8,14 +8,14 @@ on:
       pr_number: { type: string, required: true }
       branch: { type: string, required: true }
       plan_path: { type: string, required: true }
-      stage: { type: string, required: false, default: "upgrade" }
+      stage: { type: string, required: false, default: "modernize-build-upgrader" }
   workflow_dispatch:
     inputs:
       issue_number: { description: "Modernization Request issue number", type: string, required: true }
       pr_number: { description: "Implementation pull request number", type: string, required: true }
       branch: { description: "Implementation branch", type: string, required: true }
       plan_path: { description: "Approved plan path", type: string, required: true }
-      stage: { description: "Stage name. Keeps artifact names unique per worker. Leave the default.", type: string, required: false, default: "upgrade" }
+      stage: { description: "Stage name. Keeps artifact names unique per worker. Leave the default.", type: string, required: false, default: "modernize-build-upgrader" }
 
 permissions:
   contents: read
@@ -25,7 +25,7 @@ permissions:
 engine:
   id: copilot
   concurrency:
-    group: "gh-aw-copilot-modernize-upgrade-${{ inputs.issue_number }}"
+    group: "gh-aw-copilot-modernize-build-upgrader-${{ inputs.issue_number }}"
 
 concurrency:
   job-discriminator: ${{ inputs.issue_number }}
@@ -64,9 +64,9 @@ safe-outputs:
 timeout-minutes: 30
 ---
 
-# Build Upgrader run
+# modernize-build-upgrader
 
-Run the Build Upgrader role for this task.
+Run the `modernize-build-upgrader` agent role for this task.
 
 - Modernization Request issue: #${{ inputs.issue_number }}
 - Implementation pull request: #${{ inputs.pr_number }} (branch `${{ inputs.branch }}`)

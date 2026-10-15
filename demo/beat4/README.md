@@ -96,12 +96,12 @@ The compile step takes about a minute. The script ends with a table. Every row m
 .\demo\beat4\new-request.ps1
 ```
 
-The planner agent, [modernize-1-plan.md](../../.github/workflows/modernize-1-plan.md), waits for an issue that starts with `/modernize-plan` (its `slash_command` trigger, lines 5-7). `new-request.ps1` puts that line first in the issue body.
+The planner agent, [modernize-planner.md](../../.github/workflows/modernize-planner.md), waits for an issue that starts with `/modernize-plan` (its `slash_command` trigger, lines 5-7). `new-request.ps1` puts that line first in the issue body.
 
 ### 4.2 Watch the planner and review the plan
 
 ```powershell
-gh run list --workflow modernize-1-plan.lock.yml --limit 3
+gh run list --workflow modernize-planner.lock.yml --limit 3
 gh pr list --search "[modernization-plan] in:title"
 ```
 
@@ -125,12 +125,14 @@ gh run list --workflow modernize-pipeline.yml --limit 3
 gh run watch
 ```
 
-Or open **Actions > Modernize Asset Manager - Pipeline** on GitHub. The run graph shows the parallel lanes. The pull request tracker comment shows each stage's status.
+Or open **Actions > modernize-pipeline** on GitHub. The run graph shows the parallel lanes. The pull request tracker comment shows each stage's status.
+
+Each agent has one name everywhere: workflow file, Actions sidebar, run-graph job and custom agent (for example `modernize-code-fixer`).
 
 ```text
-prepare -> [ baseline-test | compat agent | deps agent ]    parallel
-        -> build-upgrader agent -> code-fixer agent          sequential, one branch
-        -> [ verify-build | verify-static ] -> review agent  parallel checks, then review
+prepare -> [ baseline-test | modernize-compat-analyst | modernize-dependency-analyst ]   parallel
+        -> modernize-build-upgrader -> modernize-code-fixer        sequential, one branch
+        -> [ verify-build | verify-static ] -> modernize-conformance-reviewer
         -> finalize
 ```
 
@@ -139,9 +141,9 @@ prepare -> [ baseline-test | compat agent | deps agent ]    parallel
 Open the Implementation Pull Request (`[modernization] Upgrade Asset Manager ...`). Show:
 
 - The tracker comment: baseline versus final tests.
-- The agent comments (compatibility, dependencies, review).
+- The agent comments: `modernize-compat-analyst`, `modernize-dependency-analyst`, `modernize-conformance-reviewer`.
 - The diff: build files first, then `javax` to `jakarta`.
-- The conformance review: `Verdict: PASS`.
+- The `modernize-conformance-reviewer` verdict: `Verdict: PASS`.
 
 To show the original and the modernized code side by side without merging:
 
@@ -156,9 +158,9 @@ git diff --stat main...origin/modernize/issue-<N>
 
 | Stage | Typical time |
 |---|---|
-| Planner agent | 5 to 10 minutes |
+| `modernize-planner` | 5 to 10 minutes |
 | Parallel analysis and baseline tests | 5 to 15 minutes |
-| Build Upgrader, Code Fixer | 15 to 40 minutes |
+| `modernize-build-upgrader`, `modernize-code-fixer` | 15 to 40 minutes |
 | Verification and review | 10 to 20 minutes |
 
 ## Recovery
@@ -167,10 +169,10 @@ Each stage is its own job or workflow, so a failure stops the pipeline at that s
 
 1. Open the failed run in **Actions** and read the failed job.
 2. Select **Re-run failed jobs**. Only the failed stage and the stages after it run again.
-3. To run one agent alone, dispatch it directly. Example for the Code Fixer:
+3. To run one agent alone, dispatch it directly. Example for `modernize-code-fixer`:
 
    ```powershell
-   gh workflow run modernize-worker-codefix.lock.yml `
+   gh workflow run modernize-code-fixer.lock.yml `
      -f issue_number=<N> -f pr_number=<PR> `
      -f branch=modernize/issue-<N> `
      -f plan_path=docs/modernization/requests/<N>-asset-manager-java-upgrade.md
@@ -206,8 +208,8 @@ Keep your pre-run until after the customer meeting.
 | Plan PR is not created | Settings > Actions > General > Allow GitHub Actions to create and approve pull requests |
 | Pipeline did not start after the merge | The plan PR title must start with `[modernization-plan]` and change a file under `docs/modernization/requests/`. Otherwise dispatch it (see Recovery) |
 | `Branch modernize/issue-<N> already exists` | Run `reset.ps1 -Full`, then create a new request |
-| `verify-build` fails on tests | Compare with the baseline in the tracker comment. Re-run the Code Fixer |
-| Agent cannot download Maven dependencies | The workflow allows the `java` network ecosystem. Check the agent log for a blocked domain and add it under `network.allowed` in the worker `.md`, then recompile |
+| `verify-build` fails on tests | Compare with the baseline in the tracker comment. Re-run `modernize-code-fixer` |
+| Agent cannot download Maven dependencies | The workflow allows the `java` network ecosystem. Check the agent log for a blocked domain and add it under `network.allowed` in that agent's workflow `.md`, then recompile |
 | An agent's comment shows another agent's content, or `safe_outputs` fails with `No handler loaded for type` | Artifact name collision. Each worker needs a unique `stage` input (already set). If you add a worker, give it its own default |
 | `gh extension upgrade aw` fails with SAML | Ignore it if `gh aw version` is v0.89.21 or newer |
 
@@ -219,9 +221,9 @@ Keep your pre-run until after the customer meeting.
 | `demo/beat4/new-request.ps1` | Creates the Modernization Request issue |
 | `demo/beat4/reset.ps1` | Previews or fully resets the fork (keeps `main`) |
 | `demo/beat4/modernization-request.md` | Issue body used by `new-request.ps1` |
-| `.github/workflows/modernize-1-plan.md` | Planner agent workflow (Stage 2) |
+| `.github/workflows/modernize-planner.md` | Planner agent workflow (Stage 2) |
 | `.github/workflows/modernize-pipeline.yml` | Orchestrating pipeline (Stage 3) |
-| `.github/workflows/modernize-worker-*.md` | Five agent workflows: compat, deps, upgrade, codefix, review |
+| `.github/workflows/modernize-*-analyst.md`, `-build-upgrader.md`, `-code-fixer.md`, `-conformance-reviewer.md` | Five agent workflows, each named like its agent |
 | `.github/agents/modernize-*.agent.md` | The five agent role definitions |
 | `.github/skills/java-modernization/` | Plan format and boundaries (planner) |
 | `.github/skills/java-upgrade-rules/` | Shared rules for the upgrade agents |

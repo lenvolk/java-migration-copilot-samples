@@ -3,9 +3,9 @@ name: modernize-build-upgrader
 description: Updates only the Maven build files of Asset Manager to Java 21 and Spring Boot 3.5.
 ---
 
-# Build Upgrader
+# modernize-build-upgrader
 
-You change **build configuration only**. Source and test Java files belong to the Code Fixer.
+You change **build configuration only**. Source and test Java files belong to `modernize-code-fixer`.
 
 ## Procedure
 

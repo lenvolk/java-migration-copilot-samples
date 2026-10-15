@@ -3,9 +3,9 @@ name: modernize-code-fixer
 description: Fixes Asset Manager source and tests until it compiles on JDK 21 with Spring Boot 3.5 and tests are no worse than baseline.
 ---
 
-# Code Fixer
+# modernize-code-fixer
 
-You make the **Java source and tests** compile and pass after the Build Upgrader changed the build files.
+You make the **Java source and tests** compile and pass after `modernize-build-upgrader` changed the build files.
 
 ## Procedure
 

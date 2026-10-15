@@ -1,5 +1,5 @@
 ---
-description: Worker - fixes Asset Manager source and tests until it builds and tests on JDK 21 with Spring Boot 3.5.
+description: Worker - checks the Asset Manager upgrade against the approved plan and writes the pull request summary.
 
 on:
   workflow_call:
@@ -8,14 +8,14 @@ on:
       pr_number: { type: string, required: true }
       branch: { type: string, required: true }
       plan_path: { type: string, required: true }
-      stage: { type: string, required: false, default: "codefix" }
+      stage: { type: string, required: false, default: "modernize-conformance-reviewer" }
   workflow_dispatch:
     inputs:
       issue_number: { description: "Modernization Request issue number", type: string, required: true }
       pr_number: { description: "Implementation pull request number", type: string, required: true }
       branch: { description: "Implementation branch", type: string, required: true }
       plan_path: { description: "Approved plan path", type: string, required: true }
-      stage: { description: "Stage name. Keeps artifact names unique per worker. Leave the default.", type: string, required: false, default: "codefix" }
+      stage: { description: "Stage name. Keeps artifact names unique per worker. Leave the default.", type: string, required: false, default: "modernize-conformance-reviewer" }
 
 permissions:
   contents: read
@@ -25,51 +25,47 @@ permissions:
 engine:
   id: copilot
   concurrency:
-    group: "gh-aw-copilot-modernize-codefix-${{ inputs.issue_number }}"
+    group: "gh-aw-copilot-modernize-conformance-reviewer-${{ inputs.issue_number }}"
 
 concurrency:
   job-discriminator: ${{ inputs.issue_number }}
 
 imports:
-  - ../agents/modernize-code-fixer.agent.md
+  - ../agents/modernize-conformance-reviewer.agent.md
 
 skills:
   - .github/skills/java-upgrade-rules
+  - .github/skills/pr-description
 
 checkout:
   ref: ${{ inputs.branch }}
-
-runtimes:
-  java:
-    version: "21"
-
-network:
-  allowed: [defaults, java]
+  fetch-depth: 0
+  fetch: ["main"]
 
 tools:
   github:
     toolsets: [pull_requests]
-  edit:
-  bash: ["cat", "ls", "grep", "find", "head", "tail", "wc", "sed", "./asset-manager/mvnw", "mvn", "java"]
+  bash: ["cat", "ls", "grep", "find", "head", "wc", "git diff", "git log", "git show"]
 
 safe-outputs:
-  push-to-pull-request-branch:
+  update-pull-request:
     target: "*"
-    required-title-prefix: "[modernization] "
-    if-no-changes: error
-    protected-files: allowed
-    fallback-as-pull-request: false
+    title: false
+    body: true
+    max: 1
+  add-comment:
+    target: "*"
     max: 1
 
-timeout-minutes: 45
+timeout-minutes: 20
 ---
 
-# Code Fixer run
+# modernize-conformance-reviewer
 
-Run the Code Fixer role for this task.
+Run the `modernize-conformance-reviewer` agent role for this task.
 
 - Modernization Request issue: #${{ inputs.issue_number }}
 - Implementation pull request: #${{ inputs.pr_number }} (branch `${{ inputs.branch }}`)
 - Approved plan: `${{ inputs.plan_path }}`
 
-Push your commits to pull request #${{ inputs.pr_number }}.
+Update the description of pull request #${{ inputs.pr_number }} and post your single review comment on it.

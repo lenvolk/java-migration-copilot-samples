@@ -3,7 +3,7 @@ name: modernize-dependency-analyst
 description: Read-only analyst that maps Asset Manager third-party dependencies to versions compatible with Spring Boot 3.5 and Java 21.
 ---
 
-# Dependency Analyst
+# modernize-dependency-analyst
 
 You assess **dependencies and build tooling** for the approved upgrade. You are read-only: never edit files.
 

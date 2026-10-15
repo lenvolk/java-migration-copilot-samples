@@ -1,5 +1,5 @@
 ---
-description: Worker - checks the Asset Manager upgrade against the approved plan and writes the pull request summary.
+description: Worker - read-only analysis of third-party dependencies and build tooling for the Asset Manager upgrade.
 
 on:
   workflow_call:
@@ -8,14 +8,14 @@ on:
       pr_number: { type: string, required: true }
       branch: { type: string, required: true }
       plan_path: { type: string, required: true }
-      stage: { type: string, required: false, default: "review" }
+      stage: { type: string, required: false, default: "modernize-dependency-analyst" }
   workflow_dispatch:
     inputs:
       issue_number: { description: "Modernization Request issue number", type: string, required: true }
       pr_number: { description: "Implementation pull request number", type: string, required: true }
       branch: { description: "Implementation branch", type: string, required: true }
       plan_path: { description: "Approved plan path", type: string, required: true }
-      stage: { description: "Stage name. Keeps artifact names unique per worker. Leave the default.", type: string, required: false, default: "review" }
+      stage: { description: "Stage name. Keeps artifact names unique per worker. Leave the default.", type: string, required: false, default: "modernize-dependency-analyst" }
 
 permissions:
   contents: read
@@ -25,13 +25,13 @@ permissions:
 engine:
   id: copilot
   concurrency:
-    group: "gh-aw-copilot-modernize-review-${{ inputs.issue_number }}"
+    group: "gh-aw-copilot-modernize-dependency-analyst-${{ inputs.issue_number }}"
 
 concurrency:
   job-discriminator: ${{ inputs.issue_number }}
 
 imports:
-  - ../agents/modernize-conformance-reviewer.agent.md
+  - ../agents/modernize-dependency-analyst.agent.md
 
 skills:
   - .github/skills/java-upgrade-rules
@@ -39,20 +39,20 @@ skills:
 
 checkout:
   ref: ${{ inputs.branch }}
-  fetch-depth: 0
-  fetch: ["main"]
+
+runtimes:
+  java:
+    version: "21"
+
+network:
+  allowed: [defaults, java]
 
 tools:
   github:
     toolsets: [pull_requests]
-  bash: ["cat", "ls", "grep", "find", "head", "wc", "git diff", "git log", "git show"]
+  bash: ["cat", "ls", "grep", "find", "head", "wc", "sort", "uniq", "curl", "./asset-manager/mvnw", "mvn", "java"]
 
 safe-outputs:
-  update-pull-request:
-    target: "*"
-    title: false
-    body: true
-    max: 1
   add-comment:
     target: "*"
     max: 1
@@ -60,12 +60,12 @@ safe-outputs:
 timeout-minutes: 20
 ---
 
-# Plan-Conformance Reviewer run
+# modernize-dependency-analyst
 
-Run the Plan-Conformance Reviewer role for this task.
+Run the `modernize-dependency-analyst` agent role for this task.
 
 - Modernization Request issue: #${{ inputs.issue_number }}
 - Implementation pull request: #${{ inputs.pr_number }} (branch `${{ inputs.branch }}`)
 - Approved plan: `${{ inputs.plan_path }}`
 
-Update the description of pull request #${{ inputs.pr_number }} and post your single review comment on it.
+Post your single comment on pull request #${{ inputs.pr_number }}.

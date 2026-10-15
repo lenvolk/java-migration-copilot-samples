@@ -35,5 +35,5 @@ Write-Host "Modernization Request created in ${target}:" -ForegroundColor Green
 Write-Host "  $url"
 Write-Host ''
 Write-Host 'Watch the planner agent (takes a few minutes):'
-Write-Host '  gh run list --workflow modernize-1-plan.lock.yml --limit 3'
+Write-Host '  gh run list --workflow modernize-planner.lock.yml --limit 3'
 Write-Host '  gh pr list --search "[modernization-plan] in:title"'
