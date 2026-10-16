@@ -24,6 +24,7 @@ permissions:
 
 engine:
   id: copilot
+  model: claude-haiku-4.5
   concurrency:
     group: "gh-aw-copilot-modernize-dependency-analyst-${{ inputs.issue_number }}"
 

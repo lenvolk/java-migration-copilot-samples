@@ -24,6 +24,7 @@ permissions:
 
 engine:
   id: copilot
+  model: gpt-5.4-mini
   concurrency:
     group: "gh-aw-copilot-modernize-compat-analyst-${{ inputs.issue_number }}"
 

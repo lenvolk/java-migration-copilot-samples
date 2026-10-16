@@ -136,6 +136,23 @@ prepare -> [ baseline-test | modernize-compat-analyst | modernize-dependency-ana
         -> finalize
 ```
 
+### Models used by the agents
+
+Each workflow selects a different model under `engine.model`, using the same Copilot engine and existing token.
+
+| Workflow | Model ID | Why |
+|---|---|---|
+| `modernize-planner` | `claude-sonnet-4.6` | Balance reasoning and readable plan writing. |
+| `modernize-compat-analyst` | `gpt-5.4-mini` | Smaller model for bounded, read-only source analysis. |
+| `modernize-dependency-analyst` | `claude-haiku-4.5` | Lightweight model for dependency inventory and recommendations. |
+| `modernize-build-upgrader` | `gpt-5-mini` | Smaller model for plan-guided Maven configuration edits. |
+| `modernize-code-fixer` | `gpt-5.3-codex` | Coding-focused model for Java edits and the compile/test/fix loop. |
+| `modernize-conformance-reviewer` | `gpt-5.4` | Reasoning-oriented model for comparing the plan, diff and evidence. |
+
+These are demo choices, not benchmarks or guarantees. Plain Actions jobs use no model. Compilation succeeds on gh-aw v0.89.21, but model access depends on the token owner, policy and availability for the gh-aw integration. Rehearse a fresh full run before presenting this model mix. Previous successful runs do not validate the new selections.
+
+See the [gh-aw engine reference](https://github.github.com/gh-aw/reference/engines/). After changing a model, run `gh aw compile` and commit both source and lock files.
+
 ### 4.5 Review the result (human gate)
 
 Open the Implementation Pull Request (`[modernization] Upgrade Asset Manager ...`). Show:

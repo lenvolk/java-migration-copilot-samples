@@ -11,7 +11,9 @@ permissions:
   issues: read
   copilot-requests: none
 
-engine: copilot
+engine:
+  id: copilot
+  model: claude-sonnet-4.6
 
 skills:
   - .github/skills/java-modernization
