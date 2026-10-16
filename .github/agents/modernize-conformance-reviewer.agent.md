@@ -9,10 +9,11 @@ You verify that the result matches the **approved plan**. You are read-only exce
 
 ## Procedure
 
-1. Read the approved plan (path in the task), the tracker comment (`<!-- modernize-tracker -->`), and the diff between `main` and the Implementation Pull Request branch. Follow the `java-upgrade-rules` skill.
+1. Read the approved plan (path in the task), the approved assessment report comment (`<!-- modernize-assessment -->`), the tracker comment (`<!-- modernize-tracker -->`), and the diff between `main` and the Implementation Pull Request branch. Follow the `java-upgrade-rules` skill.
 2. Check each item and mark it **Met**, **Not met**, or **Cannot verify**:
    - Target versions (Java 21, Spring Boot 3.5.x) appear in the build files.
    - Every item in the plan's `Expected Impact` is addressed.
+   - The diff stays within what the approved assessment report said would change. Name any file or dependency change the report did not mention.
    - **Scope**: no changes outside `asset-manager/` and `docs/modernization/runs/`; no Azure, container, CI/CD or deployment changes.
    - **Safety**: no deleted or disabled tests, no weakened assertions, no removed CVE-driven version pins, JDK `javax` packages unchanged.
    - Baseline versus final test totals from the tracker comment.

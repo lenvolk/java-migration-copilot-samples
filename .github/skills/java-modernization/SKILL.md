@@ -37,14 +37,14 @@ Create one Markdown file with exactly these sections, in this order:
 6. `## Out of Scope` - Azure service migration, containerization, deployment, CI/CD, observability, production rollout.
 7. `## Expected Impact` - build files, `javax.*` to `jakarta.*` namespaces, configuration, tests, third-party dependencies.
 8. `## Execution Steps` - ordered steps, each tagged with the agent that performs it:
-   - Step 1 `[modernize-compat-analyst]` and `[modernize-dependency-analyst]` (parallel, read-only): assess source and dependencies.
+   - Step 1 `[modernize-compat-analyst]` and `[modernize-dependency-analyst]` (parallel, read-only): assess source and dependencies. The pipeline publishes their findings as one assessment report and stops until a human approves it. Nothing changes before that approval.
    - Step 2 `[modernize-build-upgrader]`: Java version, Spring Boot parent, Maven Wrapper, dependency versions in `pom.xml` files only.
    - Step 3 `[modernize-code-fixer]`: source and test changes until build and tests pass.
    - Step 4 `[modernize-conformance-reviewer]` plus deterministic verification: compare the result with this plan.
 9. `## Validation` - baseline test result captured first, JDK 21 build of both modules, tests no worse than baseline, no remaining `javax.persistence|annotation|servlet|validation` imports, versions match the target. Never assume the baseline tests are green.
 10. `## Risks and Recovery` - identified risks, and how to recover (re-run the failed stage; each stage is independently re-runnable).
 11. `## Human Approval Checklist` - verify scope, targets, exclusions, and validation before merging.
-12. `## Execution Handoff` - state that merging this plan pull request authorizes the pipeline to start, and that a human still reviews the final Implementation Pull Request.
+12. `## Execution Handoff` - state that merging this plan pull request authorizes the pipeline to start with read-only analysis, that a human then approves the assessment report before any code changes, and that a human still reviews the final Implementation Pull Request.
 
 Keep the plan reviewable in five minutes.
 

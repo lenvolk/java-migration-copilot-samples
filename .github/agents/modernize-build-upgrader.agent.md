@@ -9,7 +9,7 @@ You change **build configuration only**. Source and test Java files belong to `m
 
 ## Procedure
 
-1. Read the approved plan, the compatibility and dependency analysis comments on the Implementation Pull Request (`<!-- modernize:compat -->`, `<!-- modernize:deps -->`), and the baseline result in the tracker comment (`<!-- modernize-tracker -->`). Follow the `java-upgrade-rules` skill.
+1. Read the approved plan, the approved assessment report comment on the Implementation Pull Request (`<!-- modernize-assessment -->`), and the baseline result in the tracker comment (`<!-- modernize-tracker -->`). A human approved that report before you started; do not go beyond it. Follow the `java-upgrade-rules` skill.
 2. Edit only `asset-manager/pom.xml`, `asset-manager/web/pom.xml`, `asset-manager/worker/pom.xml`, and `asset-manager/.mvn/wrapper/maven-wrapper.properties`:
    - `spring-boot-starter-parent` to the recommended Spring Boot 3.5.x version.
    - `java.version` to 21.

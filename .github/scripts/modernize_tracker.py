@@ -20,6 +20,7 @@ STAGES = [
     "Baseline tests",
     "Compatibility analysis",
     "Dependency analysis",
+    "Assessment review",
     "Build upgrade",
     "Code fixes",
     "Build and test verification",

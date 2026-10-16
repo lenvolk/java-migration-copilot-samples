@@ -37,7 +37,7 @@ Create a human-reviewable modernization plan for the Asset Manager application. 
 - The application is in `asset-manager/`.
 - The source baseline is Java 8 and Spring Boot 2.7.
 - The approved target for this demo is Java 21 and Spring Boot 3.5.
-- After a human merges the plan pull request, the `modernize-pipeline` workflow executes the plan with dedicated agents.
+- After a human merges the plan pull request, the `modernize-pipeline` workflow starts. It runs read-only analysis, publishes an assessment report, and waits for a second human approval before any code changes.
 
 ## Task
 
@@ -56,7 +56,7 @@ Create a human-reviewable modernization plan for the Asset Manager application. 
 - Body: write it with the `pr-description` skill, plan pull request variant. It has three sections: Summary, Evidence, Merge Danger.
   - Summary: the flow diagram, the version diff, and the execution tree. Take every version and count from the files you read.
   - Evidence: the verified baseline with file paths, and the checks the Implementation pull request must pass.
-  - Merge Danger: merging is the explicit human approval that starts the `modernize-pipeline` workflow. Application code is unchanged by this pull request.
+  - Merge Danger: merging is the explicit human approval that starts the `modernize-pipeline` workflow. The pipeline first runs read-only analysis and stops for a second human approval, so no application code changes before that. Application code is unchanged by this pull request.
   - Link the Modernization Request by number in the first sentence. Do not close it: it stays open until the Implementation pull request merges.
   - Follow the writing rules in the skill.
 

@@ -6,9 +6,11 @@ This folder holds everything the demo needs. All prerequisites for running it li
 
 1. A human files a **Modernization Request** issue.
 2. A **planner agent** writes a **Modernization Plan** and opens a plan pull request.
-3. A human **merges the plan**. That merge is the approval.
-4. A **pipeline of agents** upgrades `asset-manager` from Java 8 / Spring Boot 2.7 to Java 21 / Spring Boot 3.5, runs the tests, and opens an **Implementation Pull Request**.
-5. A human reviews that pull request.
+3. A human **merges the plan**. That merge is the first approval.
+4. The pipeline's read-only agents assess the code, and the pipeline publishes one **Assessment Report** and **stops**. Nothing has changed yet.
+5. A human **reviews and approves the Assessment Report**. That is the second approval.
+6. The rest of the **pipeline of agents** upgrades `asset-manager` from Java 8 / Spring Boot 2.7 to Java 21 / Spring Boot 3.5, runs the tests, and opens an **Implementation Pull Request**.
+7. A human reviews that pull request.
 
 **Where the code lives.** The original Java 8 code stays on `main`. The modernized code lives on the branch `modernize/issue-<N>` and in the Implementation Pull Request. `main` changes only if a human merges that pull request. Do not merge it during the demo.
 
@@ -24,12 +26,14 @@ The pipeline is modelled on the plan, execute, validate loop of GitHub Copilot a
 | Allow Actions to create pull requests | Script | `setup.ps1` |
 | Store `COPILOT_GITHUB_TOKEN` as a secret | Script | `setup.ps1` asks you to paste the token; it is never printed |
 | Create labels | Script | `setup.ps1` |
+| Create the `assessment-review` approval environment, with you as required reviewer | Script | `setup.ps1` |
 | Compile the agent workflows (`.lock.yml`) | Script | `setup.ps1` runs `gh aw compile` |
 | Commit and push the demo files to your fork | Script | `setup.ps1`, after you confirm |
 | Create the Modernization Request issue | Script | `new-request.ps1` |
 | Plan, upgrade, code fixes, tests, review, draft PR | **Agents and Actions** | Automatic |
-| **Approve the plan (merge the plan PR)** | **You (human gate)** | `gh pr merge` or the GitHub UI |
-| **Review the Implementation Pull Request** | **You (human gate)** | GitHub UI |
+| **Approve the plan (merge the plan PR)** | **You (human gate 1)** | `gh pr merge` or the GitHub UI |
+| **Approve the Assessment Report, before any code changes** | **You (human gate 2)** | Actions run > Review deployments |
+| **Review the Implementation Pull Request** | **You (human gate 3)** | GitHub UI |
 
 ## Prerequisites
 
@@ -130,11 +134,14 @@ Or open **Actions > modernize-pipeline** on GitHub. The run graph shows the para
 Each agent has one name everywhere: workflow file, Actions sidebar, run-graph job and custom agent (for example `modernize-code-fixer`).
 
 ```text
-prepare -> [ baseline-test | modernize-compat-analyst | modernize-dependency-analyst ]   parallel
+prepare -> [ baseline-test | modernize-compat-analyst | modernize-dependency-analyst ]   parallel, read-only
+        -> assessment-report -> assessment-approval                  HUMAN GATE: nothing has changed yet
         -> modernize-build-upgrader -> modernize-code-fixer        sequential, one branch
         -> [ verify-build | verify-static ] -> modernize-conformance-reviewer
         -> finalize
 ```
+
+The run stops at `assessment-approval` and shows **Waiting for review**. Continue with 4.5.
 
 ### Models used by the agents
 
@@ -153,7 +160,17 @@ These are demo choices, not benchmarks or guarantees. Plain Actions jobs use no 
 
 See the [gh-aw engine reference](https://github.github.com/gh-aw/reference/engines/). After changing a model, run `gh aw compile` and commit both source and lock files.
 
-### 4.5 Review the result (human gate)
+### 4.5 Review and approve the Assessment Report (human gate)
+
+About 5 to 15 minutes after the plan merge, the analysts finish and the run waits for you. The report is the answer to "what will change, and how?" before any code is touched.
+
+1. Open the Implementation Pull Request (draft) and read the comment **Assessment report**. It has the baseline test result, the source compatibility findings per file, the dependency decisions per artifact, and what each later job will do. The `modernize-compat-analyst` and `modernize-dependency-analyst` comments hold the same text as raw agent output. The report is also on the run summary page and downloadable as the `assessment-report` artifact.
+2. Check that the findings match the plan, and that the proposed changes stay in scope.
+3. Open the run (**Actions > modernize-pipeline**), select **Review deployments**, tick `assessment-review`, and select **Approve and deploy**. Select **Reject** to stop; the branch then has no application changes.
+
+The report comment records who approved. The tracker row **Assessment review** turns green and the code-writing agents start.
+
+### 4.6 Review the result (human gate)
 
 Open the Implementation Pull Request (`[modernization] Upgrade Asset Manager ...`). Show:
 
@@ -177,6 +194,7 @@ git diff --stat main...origin/modernize/issue-<N>
 |---|---|
 | `modernize-planner` | 5 to 10 minutes |
 | Parallel analysis and baseline tests | 5 to 15 minutes |
+| Wait for your approval of the Assessment Report | as long as you take |
 | `modernize-build-upgrader`, `modernize-code-fixer` | 15 to 40 minutes |
 | Verification and review | 10 to 20 minutes |
 
@@ -226,6 +244,10 @@ Keep your pre-run until after the customer meeting.
 | Pipeline did not start after the merge | The plan PR title must start with `[modernization-plan]` and change a file under `docs/modernization/requests/`. Otherwise dispatch it (see Recovery) |
 | `Branch modernize/issue-<N> already exists` | Run `reset.ps1 -Full`, then create a new request |
 | `verify-build` fails on tests | Compare with the baseline in the tracker comment. Re-run `modernize-code-fixer` |
+| The run shows **Waiting** at `assessment-approval` | Expected. It is the human gate. Open the run, select **Review deployments** and approve (4.5) |
+| No **Review deployments** button | You are not a required reviewer of `assessment-review`, or the environment is missing. Run `.\demo\beat4\setup.ps1`. Environments with reviewers need a public repository or a paid plan |
+| `assessment-report` fails with `no required reviewer` or `does not exist` | The approval environment would not pause. Run `.\demo\beat4\setup.ps1`, then re-run the failed jobs |
+| `assessment-report` fails with `No comment from modernize-...-analyst` | An analyst did not post its comment. Re-run that analyst, then re-run `assessment-report` |
 | Agent cannot download Maven dependencies | The workflow allows the `java` network ecosystem. Check the agent log for a blocked domain and add it under `network.allowed` in that agent's workflow `.md`, then recompile |
 | An agent's comment shows another agent's content, or `safe_outputs` fails with `No handler loaded for type` | Artifact name collision. Each worker needs a unique `stage` input (already set). If you add a worker, give it its own default |
 | `gh extension upgrade aw` fails with SAML | Ignore it if `gh aw version` is v0.89.21 or newer |
@@ -244,5 +266,5 @@ Keep your pre-run until after the customer meeting.
 | `.github/agents/modernize-*.agent.md` | The five agent role definitions |
 | `.github/skills/java-modernization/` | Plan format and boundaries (planner) |
 | `.github/skills/java-upgrade-rules/` | Shared rules for the upgrade agents |
-| `.github/scripts/` | Tracker comment and test-result helpers |
+| `.github/scripts/` | Tracker comment, assessment report and test-result helpers |
 | `*.lock.yml` | Generated by `gh aw compile`. Never edit by hand |

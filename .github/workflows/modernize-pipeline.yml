@@ -5,13 +5,15 @@ name: modernize-pipeline
 # gh-aw agent workflows (modernize-*-analyst, -build-upgrader, -code-fixer, -conformance-reviewer)
 # do the judgment work and are called as reusable workflows. Job id = workflow file name = agent name.
 #
-#   prepare -> [ baseline-test | modernize-compat-analyst | modernize-dependency-analyst ]  (parallel)
+#   prepare -> [ baseline-test | modernize-compat-analyst | modernize-dependency-analyst ]  (parallel, read-only)
+#           -> assessment-report -> assessment-approval              (HUMAN GATE: nothing is changed before this)
 #           -> modernize-build-upgrader -> modernize-code-fixer          (sequential, one shared branch)
 #           -> [ verify-build | verify-static ] -> modernize-conformance-reviewer
 #           -> finalize
 #
 # The tracker comment is read-modify-write, so every job that writes it is ordered by `needs`
-# (baseline-test -> track-analysis -> modernize-build-upgrader -> modernize-code-fixer -> track-build -> verify-build -> finalize).
+# (baseline-test -> track-analysis -> assessment-report -> assessment-approval -> modernize-build-upgrader
+#  -> modernize-code-fixer -> track-build -> verify-build -> finalize).
 
 on:
   pull_request:
@@ -112,12 +114,13 @@ jobs:
           cat > pr-body.md <<'BODY'
           ## Summary
 
-          Draft. The modernization pipeline is running for issue __ISSUE__ and pushes commits to `__BRANCH__`. The original Java 8 code stays on `main`. A reviewer agent rewrites this description when the checks finish.
+          Draft. The modernization pipeline is running for issue __ISSUE__. It first assesses the code without changing it, then waits for a human to approve the assessment report. After that it pushes commits to `__BRANCH__`. The original Java 8 code stays on `main`. A reviewer agent rewrites this description when the checks finish.
 
           ```mermaid
           flowchart LR
               A["prepare"] --> B["baseline-test<br/>modernize-compat-analyst<br/>modernize-dependency-analyst"]
-              B --> C["modernize-build-upgrader"]
+              B --> H["assessment-report<br/>assessment-approval: human"]
+              H --> C["modernize-build-upgrader"]
               C --> D["modernize-code-fixer"]
               D --> E["verify-build<br/>verify-static"]
               E --> F["modernize-conformance-reviewer"]
@@ -246,8 +249,80 @@ jobs:
           python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Compatibility analysis" --status "$(s "$COMPAT")" --detail "Comment on the PR from modernize-compat-analyst"
           python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Dependency analysis" --status "$(s "$DEPS")" --detail "Comment on the PR from modernize-dependency-analyst"
 
-  modernize-build-upgrader:
+  assessment-report:
     needs: [prepare, baseline-test, modernize-compat-analyst, modernize-dependency-analyst, track-analysis]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: Confirm the approval gate requires a reviewer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # GitHub creates a missing environment on first use with no protection, which would skip the pause.
+          set +e
+          OUT=$(gh api "repos/$GITHUB_REPOSITORY/environments/assessment-review" --jq '[.protection_rules[]? | select(.type == "required_reviewer" or .type == "required_reviewers")] | length' 2>&1)
+          STATUS=$?
+          set -e
+          if [ $STATUS -ne 0 ]; then
+            case "$OUT" in
+              *404*|*"Not Found"*) echo "::error::Environment assessment-review does not exist, so the gate would not pause. Run demo/beat4/setup.ps1."; exit 1 ;;
+              *) echo "::warning::Could not read the assessment-review environment ($OUT). Confirm it requires a reviewer."; exit 0 ;;
+            esac
+          fi
+          if [ "$OUT" = "0" ]; then
+            echo "::error::Environment assessment-review has no required reviewer, so the gate would not pause. Run demo/beat4/setup.ps1."
+            exit 1
+          fi
+      - name: Build the assessment report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ needs.prepare.outputs.pr_number }}
+          PLAN: ${{ needs.prepare.outputs.plan_path }}
+          TESTS: ${{ needs.baseline-test.outputs.tests }}
+          FAILURES: ${{ needs.baseline-test.outputs.failures }}
+          ERRORS: ${{ needs.baseline-test.outputs.errors }}
+        run: python3 .github/scripts/modernize_assessment.py build --pr "$PR" --plan "$PLAN" --tests "$TESTS" --failures "$FAILURES" --errors "$ERRORS" --out assessment-report.md
+      - name: Ask for approval in the tracker
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ needs.prepare.outputs.pr_number }}
+        run: python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Assessment review" --status attention --detail "Waiting for a human. Open the run and select Review deployments"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: assessment-report
+          path: assessment-report.md
+
+  # HUMAN GATE. The environment requires a reviewer, so this job waits until one approves in the Actions run.
+  assessment-approval:
+    needs: [prepare, assessment-report]
+    runs-on: ubuntu-latest
+    environment: assessment-review
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: Record the approval
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ needs.prepare.outputs.pr_number }}
+        run: |
+          APPROVER=$(python3 .github/scripts/modernize_assessment.py approve --pr "$PR")
+          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Assessment review" --status done --detail "Approved by $APPROVER"
+
+  modernize-build-upgrader:
+    needs: [prepare, baseline-test, modernize-compat-analyst, modernize-dependency-analyst, track-analysis, assessment-approval]
     uses: ./.github/workflows/modernize-build-upgrader.lock.yml
     permissions:
       actions: read
@@ -391,7 +466,7 @@ jobs:
     secrets: inherit
 
   finalize:
-    needs: [prepare, verify-build, verify-static, modernize-conformance-reviewer]
+    needs: [prepare, assessment-approval, verify-build, verify-static, modernize-conformance-reviewer]
     if: always() && needs.prepare.result == 'success'
     runs-on: ubuntu-latest
     permissions:
@@ -406,6 +481,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ needs.prepare.outputs.pr_number }}
+          APPROVAL: ${{ needs.assessment-approval.result }}
           BUILD: ${{ needs.verify-build.result }}
           STATIC: ${{ needs.verify-static.result }}
           REVIEW: ${{ needs.modernize-conformance-reviewer.result }}
@@ -419,8 +495,11 @@ jobs:
             python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Human review" --status attention --detail "Ready: review the pull request and merge when satisfied"
           else
             gh pr edit "$PR" --add-label needs-attention
+            if [ "$APPROVAL" = "failure" ] || [ "$APPROVAL" = "cancelled" ]; then
+              python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Assessment review" --status failed --detail "Not approved. No application file was changed"
+            fi
             python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Plan-conformance review" --status failed --detail "Review result: $REVIEW"
             python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Human review" --status failed --detail "Not ready. Re-run the failed stage from the Actions run."
-            echo "::error::Pipeline is not green (build=$BUILD static=$STATIC review=$REVIEW)."
+            echo "::error::Pipeline is not green (approval=$APPROVAL build=$BUILD static=$STATIC review=$REVIEW)."
             exit 1
           fi

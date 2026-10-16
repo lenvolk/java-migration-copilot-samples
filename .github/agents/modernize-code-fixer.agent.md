@@ -9,7 +9,7 @@ You make the **Java source and tests** compile and pass after `modernize-build-u
 
 ## Procedure
 
-1. Read the approved plan, the compatibility analysis comment (`<!-- modernize:compat -->`), and the baseline test result in the tracker comment (`<!-- modernize-tracker -->`). Follow the `java-upgrade-rules` skill.
+1. Read the approved plan, the approved assessment report comment (`<!-- modernize-assessment -->`), and the baseline test result in the tracker comment (`<!-- modernize-tracker -->`). A human approved that report before the upgrade started; do not go beyond it. Follow the `java-upgrade-rules` skill.
 2. Apply the Jakarta namespace mapping from the skill across `asset-manager/**/src`. Leave JDK `javax` packages such as `javax.imageio` unchanged.
 3. Loop, at most 6 iterations:
    - `./asset-manager/mvnw -B -ntp -f asset-manager/pom.xml -q clean test-compile`

@@ -124,6 +124,26 @@ else {
   Add-Result 'Labels' 'FIXED' (($labels | ForEach-Object { $_.n }) -join ', ')
 }
 
+# 5b. Approval gate. The pipeline pauses in this environment until a required reviewer approves the assessment report.
+# GitHub creates a missing environment without protection on first use, which would skip the pause, so it is created here.
+$gateName = 'assessment-review'
+$gateRules = 0
+$gate = Invoke-Native { gh api "repos/$target/environments/$gateName" --jq '[.protection_rules[]? | select(.type == "required_reviewers")] | length' }
+if ($gate.Ok) { [void][int]::TryParse($gate.Output.Trim(), [ref]$gateRules) }
+if ($gateRules -ge 1) {
+  Add-Result 'Approval environment' 'OK' "$gateName requires a reviewer"
+}
+elseif ($CheckOnly) {
+  Add-Result 'Approval environment' 'MANUAL' "$gateName is missing or has no required reviewer. Run setup.ps1 without -CheckOnly"
+}
+else {
+  $userId = [int](gh api user --jq .id)
+  $payload = @{ reviewers = @(@{ type = 'User'; id = $userId }); prevent_self_review = $false } | ConvertTo-Json -Depth 5 -Compress
+  $r = Invoke-Native { $payload | gh api -X PUT "repos/$target/environments/$gateName" --input - }
+  if ($r.Ok) { Add-Result 'Approval environment' 'FIXED' "$gateName created, you are the required reviewer" }
+  else { Add-Result 'Approval environment' 'MANUAL' "Settings > Environments > New environment '$gateName' > Required reviewers: add yourself. Environments with reviewers need a public repository or a paid plan" }
+}
+
 # 6. Copilot token secret
 $hasSecret = (gh secret list --repo $target --json name | ConvertFrom-Json | Where-Object name -eq 'COPILOT_GITHUB_TOKEN')
 if ($hasSecret) {

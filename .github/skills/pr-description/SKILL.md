@@ -45,14 +45,15 @@ Pick the smallest view that makes the point. Use at most three.
 Plan pull request, example for issue 1:
 
 ````markdown
-Plan for issue 1: upgrade Asset Manager from Java 8 and Spring Boot 2.7 to Java 21 and Spring Boot 3.5. This pull request adds one Markdown file and changes no application code. Merging it approves the plan and starts the pipeline.
+Plan for issue 1: upgrade Asset Manager from Java 8 and Spring Boot 2.7 to Java 21 and Spring Boot 3.5. This pull request adds one Markdown file and changes no application code. Merging it approves the plan and starts read-only analysis. A second human approval is needed before any code changes.
 
 ```mermaid
 flowchart LR
     A["Request: issue 1"] --> B["This PR: the plan"]
-    B -- "merge = approval" --> C["modernize-pipeline: agents and checks"]
-    C --> D["Draft Implementation PR"]
-    D -- "human review" --> E["main"]
+    B -- "merge = approval" --> C["modernize-pipeline: read-only analysis"]
+    C -- "approve the assessment" --> D["Agents change code"]
+    D --> E["Draft Implementation PR"]
+    E -- "human review" --> F["main"]
 ```
 
 What the plan proposes to change later, not in this pull request:
@@ -72,6 +73,8 @@ modernize-pipeline (starts on merge)
   baseline-test, JDK 8               in parallel
   modernize-compat-analyst           in parallel
   modernize-dependency-analyst       in parallel
+  assessment-report
+  assessment-approval                human gate
   modernize-build-upgrader
     modernize-code-fixer
   verify-build, verify-static        in parallel
@@ -86,7 +89,8 @@ Upgrades Asset Manager from Java 8 and Spring Boot 2.7.18 to Java 21 and Spring 
 
 ```mermaid
 flowchart LR
-    A["baseline-test: 4 tests, 1 error"] --> B["modernize-build-upgrader: pom.xml"]
+    A["baseline-test: 4 tests, 1 error"] --> H["assessment-approval: human"]
+    H --> B["modernize-build-upgrader: pom.xml"]
     B --> C["modernize-code-fixer: 5 files"]
     C --> D["verify-build, JDK 21: 4 tests, 0 errors"]
     D --> E["modernize-conformance-reviewer: PASS"]
