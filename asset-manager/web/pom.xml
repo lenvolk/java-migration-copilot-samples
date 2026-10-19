@@ -10,7 +10,7 @@
     </parent>
 
     <properties>
-        <aws-sdk.version>2.25.13</aws-sdk.version>
+        <aws-sdk.version>2.57.0</aws-sdk.version>
     </properties>
 
     <artifactId>assets-manager-web</artifactId>
