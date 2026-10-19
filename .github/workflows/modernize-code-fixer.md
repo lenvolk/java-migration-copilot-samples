@@ -51,7 +51,9 @@ tools:
   github:
     toolsets: [pull_requests]
   edit:
-  bash: ["cat", "ls", "grep", "find", "head", "tail", "wc", "sed", "./asset-manager/mvnw", "mvn", "java"]
+  # Writers run in the gh-aw sandbox: network firewall, no credentials, and repository writes only through
+  # validated safe outputs. Any shell command is allowed so Maven pipes and redirects work.
+  bash: [":*"]
 
 safe-outputs:
   push-to-pull-request-branch:
