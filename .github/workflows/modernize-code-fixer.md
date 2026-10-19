@@ -24,7 +24,7 @@ permissions:
 
 engine:
   id: copilot
-  model: gpt-5.3-codex
+  model: claude-sonnet-5.5
   concurrency:
     group: "gh-aw-copilot-modernize-code-fixer-${{ inputs.issue_number }}"
 

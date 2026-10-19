@@ -34,7 +34,7 @@ Write one Markdown file with exactly these `##` sections, in this order. A deter
    maven-wrapper: "<target Maven version or keep>"
    ```
 
-4. `## Assessment Summary`: the key numbers (classes, tests at baseline with the failing test named, javax imports, jdeps artifacts, advisories, findings by rank) in a short table, then a Mermaid `pie` of findings by rank.
+4. `## Assessment Summary`: the key numbers (classes, tests at baseline with the failing test named, javax imports, jdeps artifacts, advisories, findings by rank) in a short table, then a Mermaid `pie` of findings by rank. If the assessment has reviewer notes from gate 1, add a `### Reviewer notes` subsection that answers each note: followed, or not followed with the evidence that contradicts it.
 5. `## Scope`: in scope, then out of scope (Azure service migration, containerization, deployment, CI/CD, observability, production rollout, Spring Boot 4).
 6. `## Execution Plan`: a Mermaid `flowchart LR` of the steps, then exactly these four `###` subsections, with these headings:
    - `### Step 1 - modernize-build-upgrader`: POM files and Maven Wrapper only.

@@ -344,10 +344,17 @@ def stamp(args):
     text = re.sub(r"(?m)^Status:.*$", lambda _: status, text, count=1)
     text = re.sub(r"(?m)^No file in the repository has changed\. Approving this report.*$",
                   "No file in the repository changed before this approval. The plan in this folder was written from this report.", text, count=1)
+    notes = json.loads(pathlib.Path(args.notes).read_text(encoding="utf-8")) if args.notes and pathlib.Path(args.notes).exists() else []
+    if notes:
+        block = ["## Reviewer notes at gate 1", "",
+                 "Written by humans on the request issue before the approval. They are part of the approved record. The plan must answer each one.", ""]
+        for note in notes:
+            block += [f"### Note from @{note['author']} ({note['created_at']})", "", note["body"].strip(), ""]
+        text = text.replace("## At a glance", "\n".join(block) + "\n## At a glance", 1)
     report.write_text(text, encoding="utf-8")
     findings = pathlib.Path(args.findings)
     doc = json.loads(findings.read_text(encoding="utf-8"))
-    doc["approval"] = {"approver": args.approver, "approved_at": args.approved_at, "run": args.run, "commit": args.sha}
+    doc["approval"] = {"approver": args.approver, "approved_at": args.approved_at, "run": args.run, "commit": args.sha, "notes": notes}
     findings.write_text(json.dumps(doc, indent=2), encoding="utf-8")
     print(f"stamped: approved by {args.approver}")
 
@@ -416,6 +423,11 @@ def validate_plan(args):
 
     unknown = sorted(set(re.findall(r"\b[CD]-\d{2}\b", plan)) - set(findings))
     checks.append(("No invented finding IDs", not unknown, "none" if not unknown else ", ".join(unknown)))
+    notes = (doc.get("approval") or {}).get("notes") or []
+    if notes:
+        answered = re.search(r"(?m)^### Reviewer notes\s*$", section(plan, "Assessment Summary"))
+        checks.append(("Reviewer notes answered", bool(answered),
+                       f"{P(len(notes), "reviewer note")} answered under Assessment Summary" if answered else f"{P(len(notes), "reviewer note")} from gate 1, but no `### Reviewer notes` subsection in Assessment Summary"))
     execution_lines = section(plan, "Execution Plan").lower().splitlines()
     negated = re.compile(r"\b(no|not|never|without|excluded?|out of scope)\b")
     words = ("dockerfile", "kubernetes", "service bus", "blob storage", "bicep", "terraform", "deploy")
@@ -452,6 +464,7 @@ def main():
     s.add_argument("--approved-at", required=True)
     s.add_argument("--run", required=True)
     s.add_argument("--sha", required=True)
+    s.add_argument("--notes", help="JSON list of reviewer comments: author, created_at, body")
     v = sub.add_parser("validate-plan")
     v.add_argument("--findings", required=True)
     v.add_argument("--plan", required=True)

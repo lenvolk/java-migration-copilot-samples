@@ -359,6 +359,7 @@ jobs:
       - name: Commit the approved assessment and evidence to the plan branch
         id: files
         env:
+          GH_TOKEN: ${{ github.token }}
           ISSUE: ${{ needs.prepare.outputs.issue_number }}
           BRANCH: ${{ needs.prepare.outputs.plan_branch }}
           SHA: ${{ needs.prepare.outputs.sha }}
@@ -377,9 +378,13 @@ jobs:
           for f in rewrite.patch osv.json; do [ -f "facts/raw/$f" ] && cp "facts/raw/$f" "$DIR/evidence/"; done
           cp facts/raw/dependency-tree-*.txt facts/raw/jdeps-*.txt "$DIR/evidence/" 2>/dev/null || true
           python3 .github/scripts/modernize_cost.py estimate --stages execution > "$DIR/cost-estimate.md"
+          # Human comments on the request issue (not the /modernize command, not bots) are reviewer notes for gate 1.
+          gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE/comments" --paginate \
+            --jq '.[] | select(.user.type == "User" and (.body | startswith("/modernize") | not)) | {author: .user.login, created_at, body}' \
+            | python3 -c "import json,sys; print(json.dumps([json.loads(l) for l in sys.stdin if l.strip()]))" > notes.json
           # Record the approval in the committed copy, which is the approved record from now on.
           python3 .github/scripts/modernize_assessment.py stamp --report "$DIR/assessment.md" --findings "$DIR/findings.json" \
-            --approver "$APPROVER" --approved-at "$APPROVED_AT" --run "$RUN_URL" --sha "$SHA"
+            --approver "$APPROVER" --approved-at "$APPROVED_AT" --run "$RUN_URL" --sha "$SHA" --notes notes.json
           git add "$DIR"
           git commit -m "docs: assessment for #$ISSUE, approved by $APPROVER"
           git push -u origin "$BRANCH"

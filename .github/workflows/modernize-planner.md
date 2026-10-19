@@ -78,13 +78,14 @@ Write a human-reviewable modernization plan for Asset Manager from the **approve
 
 ## Task
 
-1. Read the request issue, `assessment.md`, `findings.json` and the evidence. Read the issue comments for any reviewer note on the assessment.
-2. Create exactly one file: `${{ inputs.request_dir }}/plan.md`, in the format of the `java-modernization` skill.
-3. Assign every finding ID from `findings.json` to exactly one execution step. Findings ranked `No change` go to the coverage table with step `none`.
-4. Take every version and count from the files you read. Never invent one.
-5. Leave the `## Cost Estimate` section with the single line `Filled in by the pipeline.` The pipeline replaces it with measured numbers.
-6. Push the file to pull request #${{ inputs.pr_number }} with the push safe output. One commit: `docs: modernization plan for #${{ inputs.issue_number }}`.
-7. Replace the pull request description with the `pr-description` skill, plan pull request variant (Summary, Evidence, Merge Danger). Link the request issue by number in the first sentence. Do not close the issue.
+1. Read the request issue, `assessment.md`, `findings.json` and the evidence.
+2. If `assessment.md` has a `## Reviewer notes at gate 1` section, those notes are binding. Answer every note in a `### Reviewer notes` subsection of `## Assessment Summary`: say how the plan follows it, or, if the evidence contradicts the note, say so with the evidence and keep the evidence-based choice. A deterministic check rejects the plan if the subsection is missing.
+3. Create exactly one file: `${{ inputs.request_dir }}/plan.md`, in the format of the `java-modernization` skill.
+4. Assign every finding ID from `findings.json` to exactly one execution step. Findings ranked `No change` go to the coverage table with step `none`.
+5. Take every version and count from the files you read. Never invent one.
+6. Leave the `## Cost Estimate` section with the single line `Filled in by the pipeline.` The pipeline replaces it with measured numbers.
+7. Push the file to pull request #${{ inputs.pr_number }} with the push safe output. One commit: `docs: modernization plan for #${{ inputs.issue_number }}`.
+8. Replace the pull request description with the `pr-description` skill, plan pull request variant (Summary, Evidence, Merge Danger), using `show-me` visuals. Link the request issue by number in the first sentence. Do not close the issue.
 
 ## Guardrails
 
