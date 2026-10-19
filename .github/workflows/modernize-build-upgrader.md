@@ -24,7 +24,7 @@ permissions:
 
 engine:
   id: copilot
-  model: gpt-5-mini
+  model: gpt-5.6-luna
   concurrency:
     group: "gh-aw-copilot-modernize-build-upgrader-${{ inputs.issue_number }}"
 

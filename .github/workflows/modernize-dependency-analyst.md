@@ -34,6 +34,8 @@ imports:
 skills:
   - .github/skills/java-upgrade-rules
   - .github/skills/pr-description
+  - .github/skills/pr
+  - .github/skills/show-me
 
 checkout:
   ref: ${{ inputs.ref }}

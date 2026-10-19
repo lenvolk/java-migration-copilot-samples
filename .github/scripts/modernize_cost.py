@@ -190,6 +190,11 @@ def actual_markdown(rows):
         lines.append(f"| threat detection ({len(detection)} runs) | `{', '.join(sorted({r['models'] for r in detection}))}` | {sum(r['requests'] for r in detection)} | | | | | {d:.1f} | {fmt_usd(d)} |")
     total = sum(r["credits"] for r in rows)
     lines.append(f"| **Total** | | | | | | | **{total:.1f}** | **{fmt_usd(total)}** |")
+    pie = [(r["agent"], r["credits"]) for r in agents if r["credits"] > 0]
+    if detection:
+        pie.append(("threat detection", sum(r["credits"] for r in detection)))
+    if len(pie) > 1:
+        lines += ["", "```mermaid", "pie showData title AI credits by agent"] + [f'    "{name}" : {value:.1f}' for name, value in pie] + ["```"]
     lines += ["", "Recorded by gh-aw for every model request (`token_usage.jsonl` in the `*-usage` artifacts of this run). 1 AI credit = $0.01."]
     return "\n".join(lines) + "\n", total
 

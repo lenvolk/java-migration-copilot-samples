@@ -24,7 +24,7 @@ permissions:
 
 engine:
   id: copilot
-  model: claude-sonnet-4.6
+  model: claude-sonnet-5.5
   concurrency:
     group: "gh-aw-copilot-modernize-planner-${{ inputs.issue_number }}"
 
@@ -34,6 +34,8 @@ concurrency:
 skills:
   - .github/skills/java-modernization
   - .github/skills/pr-description
+  - .github/skills/pr
+  - .github/skills/show-me
 
 checkout:
   ref: ${{ inputs.branch }}

@@ -24,7 +24,7 @@ permissions:
 
 engine:
   id: copilot
-  model: claude-sonnet-5.5
+  model: claude-sonnet-5
   concurrency:
     group: "gh-aw-copilot-modernize-standards-reviewer-${{ inputs.issue_number }}"
 
@@ -38,6 +38,8 @@ skills:
   - .github/skills/modernization-review
   - .github/skills/java-upgrade-rules
   - .github/skills/pr-description
+  - .github/skills/pr
+  - .github/skills/show-me
 
 checkout:
   ref: ${{ inputs.branch }}

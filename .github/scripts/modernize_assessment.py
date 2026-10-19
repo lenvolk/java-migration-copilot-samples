@@ -166,6 +166,24 @@ def render(facts, findings, structured, sections, issue, run_url, estimate_md, e
               f"| Findings | {', '.join(f'{v} {k.lower()}' for k, v in by_rank.items() if v) or 'none'} | each one owned by a plan step | analyst agents |",
               f"| Estimated AI cost of plan and execution | {modernize_cost.fmt_credits(estimate_total)} credits | {modernize_cost.fmt_usd(estimate_total)} | measured profile |", ""]
 
+    # show-me: what the requested upgrade changes, as a diff sketch, and where, as a file tree.
+    keep = [r for r in facts["javax"] if r["action"] == "keep"]
+    lines += ["What the requested upgrade changes. Nothing is changed yet:", "", "```diff", " asset-manager/",
+              f"-  java.version                  {b['java_version']}", "+  java.version                  21",
+              f"-  spring-boot-starter-parent    {b['spring_boot_version']}", f"+  spring-boot-starter-parent    {target_boot}",
+              f"-  javax.* imports               {len(jakarta)} in {len({r['path'] for r in jakarta})} files", "+  jakarta.* imports"]
+    if keep:
+        lines.append(f"   {', '.join(sorted({r['package'] for r in keep}))}{' ' * 4}stays, it ships with the JDK")
+    lines += ["```", ""]
+    if preview["files"]:
+        lines += ["Files the OpenRewrite preview touches:", "", "```text", "asset-manager/"]
+        files = [f["path"] for f in preview["files"]]
+        for i, path in enumerate(files):
+            branch = "└──" if i == len(files) - 1 else "├──"
+            stats = next(f for f in preview["files"] if f["path"] == path)
+            lines.append(f"{branch} {path:<88} +{stats['added']} -{stats['removed']}")
+        lines += ["```", ""]
+
     lines += ["```mermaid", "flowchart TB",
               f'    PARENT["asset-manager (parent POM)<br/>Java {b["java_version"]}, Spring Boot {b["spring_boot_version"]}<br/>{P(by_module.get("parent", 0), "finding")}"]']
     for name, m in inv.items():

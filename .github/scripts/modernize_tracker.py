@@ -61,6 +61,29 @@ def parse_runs(body):
     return runs
 
 
+def phase_status(rows, phase):
+    statuses = [rows.get(name, ("pending", ""))[0].split()[-1] for p, name in STAGES if p == phase]
+    for status in ("failed", "attention", "running"):
+        if status in statuses:
+            return status
+    return "done" if all(s in ("done", "skipped") for s in statuses) else "pending"
+
+
+def flow(rows):
+    """show-me view of the lifecycle: one node per phase, colored by status, gates as diamonds."""
+    phases = list(dict.fromkeys(p for p, _ in STAGES))
+    lines = ["```mermaid", "flowchart LR"]
+    for i, phase in enumerate(phases):
+        node = f"P{i}"
+        label = f'"{phase}"'
+        lines.append(f"    {node}{{{label}}}:::{phase_status(rows, phase)}" if phase.startswith("Gate") else f"    {node}[{label}]:::{phase_status(rows, phase)}")
+    lines += [f"    P{i} --> P{i + 1}" for i in range(len(phases) - 1)]
+    lines += ["    classDef done fill:#b2f2bb,stroke:#2f9e44", "    classDef attention fill:#ffec99,stroke:#f08c00",
+              "    classDef failed fill:#ffc9c9,stroke:#e03131", "    classDef running fill:#a5d8ff,stroke:#4a9eed",
+              "    classDef pending fill:#f1f3f5,stroke:#adb5bd", "```"]
+    return lines
+
+
 def render(rows, runs):
     done = sum(1 for name in STAGE_NAMES if rows.get(name, ("", ""))[0].endswith(("done", "skipped")))
     lines = [
@@ -68,6 +91,8 @@ def render(rows, runs):
         "## Modernization status",
         "",
         f"{done} of {len(STAGES)} stages done. Three human gates: approve the assessment, approve the plan (merge the plan pull request), review the Implementation pull request.",
+        "",
+        *flow(rows),
         "",
         "| Phase | Stage | Status | Detail |",
         "|---|---|---|---|",

@@ -12,6 +12,25 @@ Prepare the Asset Manager application for continued development on a supported J
 - Include build and test validation criteria.
 - Show me the assessment before any plan, and the plan before any code change.
 
+## How this request is handled
+
+```mermaid
+flowchart LR
+    R["This issue"] --> A["Assess: tools measure, 2 agents find"]
+    A --> G1{"Gate 1: approve the assessment"}
+    G1 --> P["Plan: planner agent, plan PR"]
+    P --> G2{"Gate 2: merge the plan"}
+    G2 --> X["Execute: agents change code on a branch"]
+    X --> V["Verify: JDK 21 build, tests, scans"]
+    V --> G3{"Gate 3: review the Implementation PR"}
+```
+
+```diff
+ asset-manager/
+-  Java 8, Spring Boot 2.7
++  Java 21, Spring Boot 3.5
+   web and worker behavior    unchanged
+```
 ## Demo boundary
 
 This request covers only the runtime and framework upgrade of `asset-manager/`:

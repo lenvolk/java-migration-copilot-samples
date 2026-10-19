@@ -391,7 +391,43 @@ jobs:
           BRANCH: ${{ needs.prepare.outputs.plan_branch }}
         run: |
           gh label create modernization --color 1d76db --force >/dev/null
-          printf 'Draft. The planner agent is writing `plan.md` for issue %s. This pull request already contains the approved assessment report and its evidence. It changes no application code.\n' "$ISSUE" > pr-body.md
+          cat > pr-body.md <<'BODY'
+          ## Summary
+
+          Draft. The planner agent is writing `plan.md` for issue __ISSUE__. This pull request already holds the assessment that a human approved at gate 1, and its evidence. It changes no application code.
+
+          ```mermaid
+          flowchart LR
+              A["Request: issue __ISSUE__"] --> B["Assessment"]
+              B -- "gate 1: approved" --> C["This PR: plan"]
+              C -- "gate 2: merge" --> D["Agents change code"]
+              D -- "gate 3: review" --> E["main"]
+              style C fill:#fff3cd,stroke:#d4a106
+          ```
+
+          ```text
+          docs/modernization/requests/__ISSUE__/
+          ├── assessment.md       approved report, finding IDs
+          ├── findings.json       the same findings as data
+          ├── evidence/           facts.json, rewrite.patch, osv.json, dependency trees, jdeps
+          ├── cost-estimate.md    estimated AI credits of the execution stage
+          └── plan.md             written next by modernize-planner
+          ```
+
+          ## Evidence
+
+          - **Before:** the approved assessment in `assessment.md`.
+            **After:** pending. The planner rewrites this description when `plan.md` is ready.
+
+          ## Merge Danger
+
+          **Door:** two-way. Markdown and evidence only.
+
+          Do not merge while this pull request is a draft.
+
+          **Blast Radius:** None
+          BODY
+          sed -i "s|__ISSUE__|$ISSUE|g" pr-body.md
           gh pr create --draft --base main --head "$BRANCH" --label modernization \
             --title "[modernization-plan] Plan Asset Manager Java modernization for #$ISSUE" --body-file pr-body.md
           echo "pr_number=$(gh pr view "$BRANCH" --json number --jq .number)" >> "$GITHUB_OUTPUT"

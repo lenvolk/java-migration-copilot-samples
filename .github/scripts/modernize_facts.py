@@ -693,7 +693,17 @@ def verify(args):
         return "better" if (new < old) == lower_is_better else "worse"
 
     lines = ["<!-- modernize-verification -->", "## Verification on JDK 21", "",
-             f"Result: {'PASS' if tests_ok else 'WORSE THAN BASELINE'}. Measured by Maven, Surefire and OSV.dev on the branch, compared with the approved baseline in `evidence/facts.json`. No AI.", "",
+             f"Result: {'PASS' if tests_ok else 'WORSE THAN BASELINE'}. Measured by Maven, Surefire, SpotBugs and OSV.dev on the branch, compared with the approved baseline in `evidence/facts.json`. No AI.", "",
+             "```diff",
+             f"- Java {before['build']['java_version']}, Spring Boot {before['build']['spring_boot_version']}",
+             f"+ Java {after_build['java_version']}, Spring Boot {after_build['spring_boot_version']}",
+             f"- tests on JDK 8:  {b['tests']} run, {b['failures']} failed, {b['errors']} errors",
+             f"+ tests on JDK 21: {a['tests']} run, {a['failures']} failed, {a['errors']} errors",
+             f"- javax imports to migrate: {before_javax}",
+             f"+ javax imports to migrate: {len(after_javax)}",
+             f"- known advisories: {adv_before if adv_before is not None else 'n/a'}",
+             f"+ known advisories: {adv_after if adv_after is not None else 'n/a'}",
+             "```", "",
              "| Check | Before: JDK 8, `main` | After: JDK 21, this branch | Trend |", "|---|---|---|---|",
              f"| Java release | {before['build']['java_version']} | {after_build['java_version']} | |",
              f"| Spring Boot parent | {before['build']['spring_boot_version']} | {after_build['spring_boot_version']} | |",

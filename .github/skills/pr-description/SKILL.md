@@ -7,7 +7,9 @@ description: Write the pull request body for the modernization workflows. Short,
 
 Every pull request the modernization workflows write uses this body. Keep prose short and start with the content. No preamble, no closing remarks.
 
-Adapted from the `pr` and `show-me` skills (the visual guidance comes from Dex Horthy's `show-me`) and the `unslop` writing rules.
+This is the modernization profile of the `pr` skill (Summary, Evidence, Merge Danger) and the `show-me` skill (the smallest visual that makes the point: Mermaid flow, `diff` sketch, file tree, call tree). Follow both; this skill adds the values and examples for this pipeline. The writing rules come from `unslop`.
+
+Every issue comment and pull request this pipeline writes carries at least one `show-me` visual next to the text it supports. Pick the one that fits: a Mermaid flow for stages and gates, a `diff` sketch for versions and imports, a file tree for changed paths, a table only for lists of findings.
 
 ## Body shape
 
