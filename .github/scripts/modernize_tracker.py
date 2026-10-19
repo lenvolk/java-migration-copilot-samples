@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 import subprocess
+import time
 import sys
 
 MARKER = "<!-- modernize-tracker -->"
@@ -37,11 +38,18 @@ STAGE_NAMES = [name for _, name in STAGES]
 ICONS = {"pending": "⏳", "running": "🔄", "done": "✅", "failed": "❌", "attention": "⚠️", "skipped": "⏭️"}
 
 
-def gh(*args, stdin=None):
-    result = subprocess.run(["gh", *args], input=stdin, capture_output=True, text=True, encoding="utf-8")
-    if result.returncode != 0:
-        sys.exit(f"gh {' '.join(args)} failed: {result.stderr.strip()}")
-    return result.stdout
+def gh(*args, stdin=None, required=True):
+    # The status board is cosmetic: retry transient API errors, and never fail a pipeline job over it.
+    for attempt in range(4):
+        result = subprocess.run(["gh", *args], input=stdin, capture_output=True, text=True, encoding="utf-8")
+        if result.returncode == 0:
+            return result.stdout
+        time.sleep(3 * (attempt + 1))
+    message = f"gh {' '.join(args)} failed: {result.stderr.strip()}"
+    if required:
+        sys.exit(message)
+    print(f"::warning::{message}")
+    return None
 
 
 def parse_rows(body):
@@ -117,7 +125,9 @@ def main():
     args = parser.parse_args()
 
     repo = os.environ["GITHUB_REPOSITORY"]
-    out = gh("api", f"repos/{repo}/issues/{args.issue}/comments", "--paginate", "--jq", ".[] | {id, body}")
+    out = gh("api", f"repos/{repo}/issues/{args.issue}/comments", "--paginate", "--jq", ".[] | {id, body}", required=False)
+    if out is None:
+        return
     comments = [json.loads(line) for line in out.splitlines() if line.strip()]
     existing = next((c for c in comments if MARKER in c["body"]), None)
 
@@ -135,9 +145,9 @@ def main():
 
     body = render(rows, runs)
     if existing:
-        gh("api", "-X", "PATCH", f"repos/{repo}/issues/comments/{existing['id']}", "-F", "body=@-", stdin=body)
+        gh("api", "-X", "PATCH", f"repos/{repo}/issues/comments/{existing['id']}", "-F", "body=@-", stdin=body, required=False)
     else:
-        gh("api", "-X", "POST", f"repos/{repo}/issues/{args.issue}/comments", "-F", "body=@-", stdin=body)
+        gh("api", "-X", "POST", f"repos/{repo}/issues/{args.issue}/comments", "-F", "body=@-", stdin=body, required=False)
 
 
 if __name__ == "__main__":
