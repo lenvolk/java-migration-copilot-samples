@@ -170,7 +170,7 @@ $compile = Invoke-Native { gh aw compile }
 Write-Host $compile.Output
 if (-not $compile.Ok) { Stop-Setup 'gh aw compile failed. Fix the error above and re-run.' }
 $locks = @(Get-ChildItem .github\workflows -Filter 'modernize-*.lock.yml')
-if ($locks.Count -lt 6) { Stop-Setup "Expected 6 compiled .lock.yml files, found $($locks.Count)." }
+if ($locks.Count -lt 7) { Stop-Setup "Expected 7 compiled .lock.yml files, found $($locks.Count)." }
 Add-Result 'gh aw compile' 'OK' "$($locks.Count) lock files"
 
 if ($CheckOnly) {
@@ -181,10 +181,12 @@ if ($CheckOnly) {
 }
 
 # 8. Commit and push to main of the fork
+# .github/modernize/ holds local GitHub Copilot app modernization reports. They are never part of the demo.
+$beat4Paths = @('.github', 'demo', '.gitattributes', ':(exclude).github/modernize')
 git fetch origin main --quiet
 $branch = git branch --show-current
 if ($branch -ne 'main') { Stop-Setup "Switch to main first (current branch: $branch)." }
-$pending = git status --porcelain -- .github demo .gitattributes
+$pending = git status --porcelain -- @beat4Paths
 if ($pending) {
   Write-Host ''
   Write-Host 'These Beat 4 files will be committed to main of your fork:' -ForegroundColor Yellow
@@ -194,7 +196,7 @@ if ($pending) {
     if ($answer -notmatch '^(y|yes)$') { Add-Result 'Commit and push' 'MANUAL' 'skipped; run git add/commit/push yourself'; $pending = $null }
   }
   if ($pending) {
-    git add .github demo .gitattributes
+    git add -- @beat4Paths
     git commit -m 'feat: add Beat 4 multi-agent Java modernization pipeline' | Out-Null
     git push origin main
     if ($LASTEXITCODE -ne 0) { Stop-Setup 'git push failed.' }
@@ -208,7 +210,7 @@ else {
 # 9. Verify GitHub sees the workflows
 Start-Sleep -Seconds 5
 $names = gh workflow list --repo $target --json name | ConvertFrom-Json | ForEach-Object { $_.name }
-$expected = @('modernize-pipeline', 'modernize-planner', 'modernize-compat-analyst', 'modernize-dependency-analyst', 'modernize-build-upgrader', 'modernize-code-fixer', 'modernize-conformance-reviewer')
+$expected = @('modernize-assessment', 'modernize-pipeline', 'modernize-planner', 'modernize-compat-analyst', 'modernize-dependency-analyst', 'modernize-build-upgrader', 'modernize-code-fixer', 'modernize-conformance-reviewer', 'modernize-standards-reviewer')
 $missing = $expected | Where-Object { $names -notcontains $_ }
 if ($missing) { Add-Result 'Workflows registered' 'MANUAL' "not visible yet: $($missing -join ', '). Wait a minute and run: gh workflow list" }
 else { Add-Result 'Workflows registered' 'OK' "all $($expected.Count) modernize-* workflows visible in Actions" }

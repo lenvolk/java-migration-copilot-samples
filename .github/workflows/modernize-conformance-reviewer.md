@@ -1,5 +1,5 @@
 ---
-description: Worker - checks the Asset Manager upgrade against the approved plan and writes the pull request summary.
+description: Worker - Spec axis review. Traces every approved finding ID to the Asset Manager upgrade diff and writes the pull request summary.
 
 on:
   workflow_call:
@@ -35,6 +35,7 @@ imports:
   - ../agents/modernize-conformance-reviewer.agent.md
 
 skills:
+  - .github/skills/modernization-review
   - .github/skills/java-upgrade-rules
   - .github/skills/pr-description
 
@@ -46,7 +47,7 @@ checkout:
 tools:
   github:
     toolsets: [pull_requests]
-  bash: ["cat", "ls", "grep", "find", "head", "wc", "git diff", "git log", "git show"]
+  bash: ["cat", "ls", "grep", "find", "head", "tail", "wc", "git diff", "git log", "git show"]
 
 safe-outputs:
   update-pull-request:
@@ -67,6 +68,6 @@ Run the `modernize-conformance-reviewer` agent role for this task.
 
 - Modernization Request issue: #${{ inputs.issue_number }}
 - Implementation pull request: #${{ inputs.pr_number }} (branch `${{ inputs.branch }}`)
-- Approved plan: `${{ inputs.plan_path }}`
+- Approved plan: `${{ inputs.plan_path }}`. The approved `assessment.md`, `findings.json` and `evidence/` are in the same folder.
 
-Update the description of pull request #${{ inputs.pr_number }} and post your single review comment on it.
+Update the description of pull request #${{ inputs.pr_number }} and post your single Spec review comment on it.

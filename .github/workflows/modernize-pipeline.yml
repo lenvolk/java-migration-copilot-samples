@@ -1,30 +1,29 @@
 name: modernize-pipeline
 
-# Stage 3 of the Beat 4 demo. Starts when a human merges the modernization plan pull request.
-# Plain GitHub Actions jobs do the deterministic work (branch, tests, checks).
-# gh-aw agent workflows (modernize-*-analyst, -build-upgrader, -code-fixer, -conformance-reviewer)
-# do the judgment work and are called as reusable workflows. Job id = workflow file name = agent name.
+# Stage 3 of the Beat 4 demo: execute the approved plan. Starts when a human merges the plan pull
+# request (gate 2). The assessment (gate 1) and the plan were produced by modernize-assessment.yml.
+# Plain GitHub Actions jobs do the deterministic work (branch, build, tests, checks, cost).
+# gh-aw agent workflows do the judgment work and are called as reusable workflows.
+# Job id = workflow file name = agent name.
 #
-#   prepare -> [ baseline-test | modernize-compat-analyst | modernize-dependency-analyst ]  (parallel, read-only)
-#           -> assessment-report -> assessment-approval              (HUMAN GATE: nothing is changed before this)
-#           -> modernize-build-upgrader -> modernize-code-fixer          (sequential, one shared branch)
-#           -> [ verify-build | verify-static ] -> modernize-conformance-reviewer
-#           -> finalize
+#   prepare -> modernize-build-upgrader -> modernize-code-fixer        (sequential, one shared branch)
+#           -> [ verify-build | verify-static ]                        (parallel, no AI)
+#           -> [ modernize-conformance-reviewer | modernize-standards-reviewer ]   (parallel, read-only)
+#           -> finalize                                                (cost report, HUMAN GATE 3)
 #
-# The tracker comment is read-modify-write, so every job that writes it is ordered by `needs`
-# (baseline-test -> track-analysis -> assessment-report -> assessment-approval -> modernize-build-upgrader
-#  -> modernize-code-fixer -> track-build -> verify-build -> finalize).
+# The tracker comment on the request issue is read-modify-write, so every job that writes it is
+# ordered by `needs` (prepare -> track-build -> verify-build -> track-review -> finalize).
 
 on:
   pull_request:
     types: [closed]
     branches: [main]
     paths:
-      - "docs/modernization/requests/*.md"
+      - "docs/modernization/requests/**"
   workflow_dispatch:
     inputs:
       plan_path:
-        description: "Approved plan, for example docs/modernization/requests/12-asset-manager-java-upgrade.md"
+        description: "Approved plan, for example docs/modernization/requests/12/plan.md"
         required: true
         type: string
 
@@ -52,10 +51,14 @@ jobs:
       pr_number: ${{ steps.pr.outputs.pr_number }}
       branch: ${{ steps.plan.outputs.branch }}
       plan_path: ${{ steps.plan.outputs.plan_path }}
+      request_dir: ${{ steps.plan.outputs.request_dir }}
+      target_boot: ${{ steps.plan.outputs.target_boot }}
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: main
+          # The plan's merge commit, not a moving main, so the branch starts from the approved state.
+          ref: ${{ github.event.pull_request.merge_commit_sha || 'main' }}
+          fetch-depth: 0
 
       - name: Resolve the approved plan
         id: plan
@@ -66,19 +69,37 @@ jobs:
           PLAN_INPUT: ${{ inputs.plan_path }}
         run: |
           if [ "$EVENT_NAME" = "pull_request" ]; then
-            PLAN=$(gh pr view "$PLAN_PR" --json files --jq '.files[].path' | grep -E '^docs/modernization/requests/[0-9]+-.*\.md$' | head -n1 || true)
+            PLAN=$(gh pr view "$PLAN_PR" --json files --jq '.files[].path' | grep -E '^docs/modernization/requests/[0-9]+/plan\.md$' | head -n1 || true)
           else
             PLAN="$PLAN_INPUT"
           fi
-          if ! echo "$PLAN" | grep -Eq '^docs/modernization/requests/[0-9]+-[A-Za-z0-9._-]+\.md$'; then
-            echo "::error::No valid plan file found. Expected docs/modernization/requests/<issue>-*.md, got '$PLAN'."
+          if ! echo "$PLAN" | grep -Eq '^docs/modernization/requests/[0-9]+/plan\.md$'; then
+            echo "::error::No valid plan file found. Expected docs/modernization/requests/<issue>/plan.md, got '$PLAN'."
             exit 1
           fi
-          test -f "$PLAN" || { echo "::error::$PLAN is not on main."; exit 1; }
-          ISSUE=$(basename "$PLAN" | grep -oE '^[0-9]+')
+          DIR=$(dirname "$PLAN")
+          for f in "$PLAN" "$DIR/assessment.md" "$DIR/findings.json" "$DIR/evidence/facts.json"; do
+            test -f "$f" || { echo "::error::$f is not on main. The plan pull request must contain the approved assessment."; exit 1; }
+          done
+          ISSUE=$(basename "$DIR")
+          # The approved target comes from the plan's Run Parameters block. No fallback: an unreadable target stops the run.
+          BOOT=$(sed -n '/^## Run Parameters/,/^## /p' "$PLAN" | grep -E '^target:' | grep -oE 'spring-boot: *"?3\.5\.[0-9]+' | grep -oE '3\.5\.[0-9]+' | tail -n1 || true)
+          if [ -z "$BOOT" ]; then
+            echo "::error::No exact Spring Boot 3.5.x target in the Run Parameters of $PLAN."
+            exit 1
+          fi
+          # The approval covers the code that was measured. If asset-manager changed since then, assess again.
+          ASSESSED=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['commit'] or '')" "$DIR/evidence/facts.json")
+          if [ -n "$ASSESSED" ] && ! git diff --quiet "$ASSESSED" HEAD -- asset-manager; then
+            echo "::error::asset-manager changed after the assessment of commit $ASSESSED. Comment /modernize on the request issue to assess again."
+            git diff --stat "$ASSESSED" HEAD -- asset-manager
+            exit 1
+          fi
           echo "plan_path=$PLAN" >> "$GITHUB_OUTPUT"
+          echo "request_dir=$DIR" >> "$GITHUB_OUTPUT"
           echo "issue_number=$ISSUE" >> "$GITHUB_OUTPUT"
           echo "branch=modernize/issue-$ISSUE" >> "$GITHUB_OUTPUT"
+          echo "target_boot=$BOOT" >> "$GITHUB_OUTPUT"
 
       - name: Create the working branch
         env:
@@ -107,6 +128,7 @@ jobs:
           BRANCH: ${{ steps.plan.outputs.branch }}
           ISSUE: ${{ steps.plan.outputs.issue_number }}
           PLAN: ${{ steps.plan.outputs.plan_path }}
+          BOOT: ${{ steps.plan.outputs.target_boot }}
         run: |
           gh label create modernization --color 1d76db --force >/dev/null
           gh label create ready-for-human-review --color 0e8a16 --force >/dev/null
@@ -114,23 +136,22 @@ jobs:
           cat > pr-body.md <<'BODY'
           ## Summary
 
-          Draft. The modernization pipeline is running for issue __ISSUE__. It first assesses the code without changing it, then waits for a human to approve the assessment report. After that it pushes commits to `__BRANCH__`. The original Java 8 code stays on `main`. A reviewer agent rewrites this description when the checks finish.
+          Draft. The modernization pipeline is executing the approved plan for issue __ISSUE__ on `__BRANCH__`. The original Java 8 code stays on `main`. The Spec reviewer rewrites this description when the checks finish.
 
           ```mermaid
           flowchart LR
-              A["prepare"] --> B["baseline-test<br/>modernize-compat-analyst<br/>modernize-dependency-analyst"]
-              B --> H["assessment-report<br/>assessment-approval: human"]
-              H --> C["modernize-build-upgrader"]
+              A["Gate 1: assessment approved"] --> B["Gate 2: plan merged"]
+              B --> C["modernize-build-upgrader"]
               C --> D["modernize-code-fixer"]
-              D --> E["verify-build<br/>verify-static"]
-              E --> F["modernize-conformance-reviewer"]
-              F --> G["finalize: human review"]
+              D --> E["verify-build, verify-static"]
+              E --> F["Spec and Standards reviewers"]
+              F --> G["Gate 3: human review"]
           ```
 
           ## Evidence
 
           - **Before:** `main` is Java 8 and Spring Boot 2.7.18. Approved plan: `__PLAN__`.
-            **After:** pending. The status comment below shows each stage as it finishes.
+            **After:** pending. The status board on issue __ISSUE__ shows each stage as it finishes.
 
           ## Merge Danger
 
@@ -144,185 +165,25 @@ jobs:
           BODY
           sed -i "s|__ISSUE__|$ISSUE|g; s|__BRANCH__|$BRANCH|g; s|__PLAN__|$PLAN|g" pr-body.md
           gh pr create --draft --base main --head "$BRANCH" --label modernization \
-            --title "[modernization] Upgrade Asset Manager to Java 21 and Spring Boot 3.5 (#$ISSUE)" \
+            --title "[modernization] Upgrade Asset Manager to Java 21 and Spring Boot $BOOT (#$ISSUE)" \
             --body-file pr-body.md
           echo "pr_number=$(gh pr view "$BRANCH" --json number --jq .number)" >> "$GITHUB_OUTPUT"
 
-      - name: Start the tracker
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ steps.pr.outputs.pr_number }}
-          ACTOR: ${{ github.actor }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Plan approved" --status done --detail "Plan merged (approved) by @$ACTOR" --run-url "$RUN_URL"
-
-  baseline-test:
-    needs: prepare
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: write
-    outputs:
-      tests: ${{ steps.summary.outputs.tests }}
-      failures: ${{ steps.summary.outputs.failures }}
-      errors: ${{ steps.summary.outputs.errors }}
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: main
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "8"
-          cache: maven
-          cache-dependency-path: asset-manager/**/pom.xml
-      - name: Run the baseline tests
-        working-directory: asset-manager
-        run: ./mvnw -B -ntp test -Dmaven.test.failure.ignore=true
-      - name: Summarize
-        id: summary
-        run: python3 .github/scripts/surefire_summary.py asset-manager | tee -a "$GITHUB_OUTPUT"
-      - name: Record the baseline in the tracker
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ needs.prepare.outputs.pr_number }}
-          DETAIL: "${{ steps.summary.outputs.tests }} tests, ${{ steps.summary.outputs.failures }} failures, ${{ steps.summary.outputs.errors }} errors (JDK 8, main)"
-        run: python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Baseline tests" --status done --detail "$DETAIL"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: baseline-test-reports
-          path: asset-manager/**/target/surefire-reports/
-          if-no-files-found: ignore
-
-  modernize-compat-analyst:
-    needs: prepare
-    uses: ./.github/workflows/modernize-compat-analyst.lock.yml
-    permissions:
-      actions: read
-      contents: write
-      issues: write
-      pull-requests: write
-    with:
-      issue_number: ${{ needs.prepare.outputs.issue_number }}
-      pr_number: ${{ needs.prepare.outputs.pr_number }}
-      branch: ${{ needs.prepare.outputs.branch }}
-      plan_path: ${{ needs.prepare.outputs.plan_path }}
-    secrets: inherit
-
-  modernize-dependency-analyst:
-    needs: prepare
-    uses: ./.github/workflows/modernize-dependency-analyst.lock.yml
-    permissions:
-      actions: read
-      contents: write
-      issues: write
-      pull-requests: write
-    with:
-      issue_number: ${{ needs.prepare.outputs.issue_number }}
-      pr_number: ${{ needs.prepare.outputs.pr_number }}
-      branch: ${{ needs.prepare.outputs.branch }}
-      plan_path: ${{ needs.prepare.outputs.plan_path }}
-    secrets: inherit
-
-  track-analysis:
-    needs: [prepare, baseline-test, modernize-compat-analyst, modernize-dependency-analyst]
-    if: always() && needs.prepare.result == 'success'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      issues: write
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: main
       - name: Update the tracker
         env:
           GH_TOKEN: ${{ github.token }}
-          PR: ${{ needs.prepare.outputs.pr_number }}
-          COMPAT: ${{ needs.modernize-compat-analyst.result }}
-          DEPS: ${{ needs.modernize-dependency-analyst.result }}
+          ISSUE: ${{ steps.plan.outputs.issue_number }}
+          PR: ${{ steps.pr.outputs.pr_number }}
+          PLAN_PR: ${{ github.event.pull_request.number }}
+          ACTOR: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          s() { if [ "$1" = "success" ]; then echo done; else echo failed; fi; }
-          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Compatibility analysis" --status "$(s "$COMPAT")" --detail "Comment on the PR from modernize-compat-analyst"
-          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Dependency analysis" --status "$(s "$DEPS")" --detail "Comment on the PR from modernize-dependency-analyst"
-
-  assessment-report:
-    needs: [prepare, baseline-test, modernize-compat-analyst, modernize-dependency-analyst, track-analysis]
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-      issues: write
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: main
-      - name: Confirm the approval gate requires a reviewer
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          # GitHub creates a missing environment on first use with no protection, which would skip the pause.
-          set +e
-          OUT=$(gh api "repos/$GITHUB_REPOSITORY/environments/assessment-review" --jq '[.protection_rules[]? | select(.type == "required_reviewer" or .type == "required_reviewers")] | length' 2>&1)
-          STATUS=$?
-          set -e
-          if [ $STATUS -ne 0 ]; then
-            case "$OUT" in
-              *404*|*"Not Found"*) echo "::error::Environment assessment-review does not exist, so the gate would not pause. Run demo/beat4/setup.ps1."; exit 1 ;;
-              *) echo "::warning::Could not read the assessment-review environment ($OUT). Confirm it requires a reviewer."; exit 0 ;;
-            esac
-          fi
-          if [ "$OUT" = "0" ]; then
-            echo "::error::Environment assessment-review has no required reviewer, so the gate would not pause. Run demo/beat4/setup.ps1."
-            exit 1
-          fi
-      - name: Build the assessment report
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ needs.prepare.outputs.pr_number }}
-          PLAN: ${{ needs.prepare.outputs.plan_path }}
-          TESTS: ${{ needs.baseline-test.outputs.tests }}
-          FAILURES: ${{ needs.baseline-test.outputs.failures }}
-          ERRORS: ${{ needs.baseline-test.outputs.errors }}
-        run: python3 .github/scripts/modernize_assessment.py build --pr "$PR" --plan "$PLAN" --tests "$TESTS" --failures "$FAILURES" --errors "$ERRORS" --out assessment-report.md
-      - name: Ask for approval in the tracker
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ needs.prepare.outputs.pr_number }}
-        run: python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Assessment review" --status attention --detail "Waiting for a human. Open the run and select Review deployments"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: assessment-report
-          path: assessment-report.md
-
-  # HUMAN GATE. The environment requires a reviewer, so this job waits until one approves in the Actions run.
-  assessment-approval:
-    needs: [prepare, assessment-report]
-    runs-on: ubuntu-latest
-    environment: assessment-review
-    permissions:
-      actions: read
-      contents: read
-      issues: write
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          ref: main
-      - name: Record the approval
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR: ${{ needs.prepare.outputs.pr_number }}
-        run: |
-          APPROVER=$(python3 .github/scripts/modernize_assessment.py approve --pr "$PR")
-          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Assessment review" --status done --detail "Approved by $APPROVER"
+          python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --run "Execution: $RUN_URL" \
+            --stage "Plan approval" --status done --detail "Plan pull request ${PLAN_PR:+#$PLAN_PR }merged by @$ACTOR"
+          python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Build upgrade" --status running --detail "Draft Implementation pull request #$PR"
 
   modernize-build-upgrader:
-    needs: [prepare, baseline-test, modernize-compat-analyst, modernize-dependency-analyst, track-analysis, assessment-approval]
+    needs: prepare
     uses: ./.github/workflows/modernize-build-upgrader.lock.yml
     permissions:
       actions: read
@@ -358,29 +219,32 @@ jobs:
     permissions:
       contents: read
       issues: write
-      pull-requests: write
     steps:
       - uses: actions/checkout@v5
         with:
           ref: main
+          sparse-checkout: .github/scripts
       - name: Update the tracker
         env:
           GH_TOKEN: ${{ github.token }}
-          PR: ${{ needs.prepare.outputs.pr_number }}
+          ISSUE: ${{ needs.prepare.outputs.issue_number }}
           UPGRADE: ${{ needs.modernize-build-upgrader.result }}
           CODEFIX: ${{ needs.modernize-code-fixer.result }}
         run: |
           s() { if [ "$1" = "success" ]; then echo done; else echo failed; fi; }
-          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Build upgrade" --status "$(s "$UPGRADE")" --detail "Commit pushed by modernize-build-upgrader"
-          python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Code fixes" --status "$(s "$CODEFIX")" --detail "Commits pushed by modernize-code-fixer"
+          python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Build upgrade" --status "$(s "$UPGRADE")" --detail "Commit build(D-..) pushed by modernize-build-upgrader"
+          python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Code fixes" --status "$(s "$CODEFIX")" --detail "Commits fix(C-..) pushed by modernize-code-fixer"
 
   verify-build:
-    needs: [prepare, baseline-test, modernize-code-fixer, track-build]
+    needs: [prepare, modernize-code-fixer, track-build]
     runs-on: ubuntu-latest
     permissions:
+      checks: write
       contents: read
       issues: write
       pull-requests: write
+    env:
+      RAW: ${{ github.workspace }}/after
     steps:
       - uses: actions/checkout@v5
         with:
@@ -396,27 +260,60 @@ jobs:
           java-version: "21"
           cache: maven
           cache-dependency-path: asset-manager/**/pom.xml
-      - name: Build, test, and package
+      - name: Build, test, and package on JDK 21
         working-directory: asset-manager
         run: |
           ./mvnw -B -ntp clean test -Dmaven.test.failure.ignore=true
           ./mvnw -B -ntp -DskipTests package
           ls web/target/*.jar worker/target/*.jar
-      - name: Summarize and compare with the baseline
-        id: summary
+          mkdir -p "$RAW"
+          for m in web worker; do
+            if [ -d "$m/target/surefire-reports" ]; then mkdir -p "$RAW/baseline-tests/$m" && cp "$m"/target/surefire-reports/TEST-*.xml "$RAW/baseline-tests/$m/" 2>/dev/null || true; fi
+          done
+      - name: Dependency tree after the upgrade
+        working-directory: asset-manager
+        run: |
+          ./mvnw -B -ntp -q dependency:tree -DoutputFile=target/dependency-tree.txt
+          for m in web worker; do cp "$m/target/dependency-tree.txt" "$RAW/dependency-tree-$m.txt"; done
+      - name: Static analysis after the upgrade (SpotBugs)
+        working-directory: asset-manager
+        continue-on-error: true
+        run: |
+          ./mvnw -B -ntp com.github.spotbugs:spotbugs-maven-plugin:4.10.5.0:spotbugs -Dspotbugs.xmlOutput=true
+          for m in web worker; do cp "$m/target/spotbugsXml.xml" "$RAW/spotbugs-$m.xml"; done
+      - name: Find the commit under test
+        id: head
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      # A native "JUnit on JDK 21" check on the Implementation PR's head commit, with one annotation per failed test.
+      - name: Publish the JDK 21 test results as a check
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          commit: ${{ steps.head.outputs.sha }}
+          check_name: JUnit on JDK 21
+          comment_mode: "off"
+          files: after/baseline-tests/**/*.xml
+      - name: Known vulnerabilities after the upgrade (OSV.dev)
+        continue-on-error: true
+        run: python3 main-scripts/.github/scripts/modernize_facts.py osv --trees "$RAW" --out "$RAW/osv.json"
+      - name: Compare with the approved baseline
+        id: verify
+        env:
+          DIR: ${{ needs.prepare.outputs.request_dir }}
+        run: |
+          python3 main-scripts/.github/scripts/modernize_facts.py verify --before "$DIR/evidence/facts.json" --project asset-manager \
+            --raw "$RAW" --out verification.md --github-output "$GITHUB_OUTPUT"
+          cat verification.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish the verification
         env:
           GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ needs.prepare.outputs.issue_number }}
           PR: ${{ needs.prepare.outputs.pr_number }}
-          BASE_TESTS: ${{ needs.baseline-test.outputs.tests }}
-          BASE_FAIL: ${{ needs.baseline-test.outputs.failures }}
-          BASE_ERR: ${{ needs.baseline-test.outputs.errors }}
+          STATUS: ${{ steps.verify.outputs.status }}
+          DETAIL: ${{ steps.verify.outputs.detail }}
         run: |
-          python3 main-scripts/.github/scripts/surefire_summary.py asset-manager | tee summary.txt
-          T=$(grep '^tests=' summary.txt | cut -d= -f2); F=$(grep '^failures=' summary.txt | cut -d= -f2); E=$(grep '^errors=' summary.txt | cut -d= -f2)
-          DETAIL="JDK 21: $T tests, $F failures, $E errors. Baseline: $BASE_TESTS tests, $BASE_FAIL failures, $BASE_ERR errors."
-          if [ $((F + E)) -le $((BASE_FAIL + BASE_ERR)) ] && [ "$T" -ge "$BASE_TESTS" ]; then STATUS=done; else STATUS=failed; fi
-          python3 main-scripts/.github/scripts/modernize_tracker.py --pr "$PR" --stage "Build and test verification" --status "$STATUS" --detail "$DETAIL"
-          echo "$DETAIL"
+          gh pr comment "$PR" --body-file verification.md
+          python3 main-scripts/.github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Build and test verification" --status "$STATUS" --detail "$DETAIL"
           [ "$STATUS" = "done" ]
       - uses: actions/upload-artifact@v4
         if: always()
@@ -430,23 +327,34 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    outputs:
+      detail: ${{ steps.check.outputs.detail }}
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ needs.prepare.outputs.branch }}
+          fetch-depth: 0
       - name: Check versions and Jakarta namespaces
+        id: check
+        env:
+          TARGET_BOOT: ${{ needs.prepare.outputs.target_boot }}
         run: |
           fail=0
           BOOT=$(sed -n '/<artifactId>spring-boot-starter-parent<\/artifactId>/,/<\/parent>/p' asset-manager/pom.xml | grep -oE '<version>[^<]+' | head -n1 | cut -d'>' -f2)
           JAVA=$(grep -oE '<java.version>[^<]+' asset-manager/pom.xml | head -n1 | cut -d'>' -f2)
-          echo "Spring Boot parent: $BOOT, java.version: $JAVA"
+          echo "Spring Boot parent: $BOOT (plan: $TARGET_BOOT), java.version: $JAVA"
           case "$BOOT" in 3.5.*) ;; *) echo "::error::Spring Boot parent must be 3.5.x"; fail=1 ;; esac
+          if [ "$BOOT" != "$TARGET_BOOT" ]; then echo "::error::Spring Boot parent $BOOT does not match the plan ($TARGET_BOOT)"; fail=1; fi
           [ "$JAVA" = "21" ] || { echo "::error::java.version must be 21"; fail=1; }
-          if grep -rnE --include='*.java' 'import javax\.(persistence|annotation|servlet|validation)' asset-manager; then
+          if grep -rnE --include='*.java' 'import javax\.(persistence|annotation\.(PostConstruct|PreDestroy|Resource)|servlet|validation)' asset-manager; then
             echo "::error::Remaining javax imports must be jakarta"; fail=1
           fi
           # javax.imageio ships in the JDK and must stay unchanged
           grep -rq --include='*.java' 'import jakarta\.imageio' asset-manager && { echo "::error::javax.imageio must not be renamed"; fail=1; }
+          if git diff --name-only origin/main...HEAD 2>/dev/null | grep -vE '^(asset-manager/|docs/modernization/)'; then
+            echo "::error::Files changed outside asset-manager/ and docs/modernization/"; fail=1
+          fi
+          echo "detail=Spring Boot $BOOT, Java $JAVA, no Jakarta-bound javax imports left" >> "$GITHUB_OUTPUT"
           exit $fail
 
   modernize-conformance-reviewer:
@@ -465,11 +373,28 @@ jobs:
       plan_path: ${{ needs.prepare.outputs.plan_path }}
     secrets: inherit
 
+  modernize-standards-reviewer:
+    needs: [prepare, modernize-code-fixer, verify-build, verify-static]
+    if: always() && needs.prepare.result == 'success' && needs.modernize-code-fixer.result == 'success'
+    uses: ./.github/workflows/modernize-standards-reviewer.lock.yml
+    permissions:
+      actions: read
+      contents: write
+      issues: write
+      pull-requests: write
+    with:
+      issue_number: ${{ needs.prepare.outputs.issue_number }}
+      pr_number: ${{ needs.prepare.outputs.pr_number }}
+      branch: ${{ needs.prepare.outputs.branch }}
+      plan_path: ${{ needs.prepare.outputs.plan_path }}
+    secrets: inherit
+
   finalize:
-    needs: [prepare, assessment-approval, verify-build, verify-static, modernize-conformance-reviewer]
+    needs: [prepare, verify-build, verify-static, modernize-conformance-reviewer, modernize-standards-reviewer]
     if: always() && needs.prepare.result == 'success'
     runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
       issues: write
       pull-requests: write
@@ -477,29 +402,63 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: main
-      - name: Mark ready or flag attention
+          sparse-checkout: .github/scripts
+      - name: Download the agents' usage records
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          pattern: "*-{usage,info}"
+          path: usage
+      - name: Report the AI cost of this run
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ needs.prepare.outputs.pr_number }}
-          APPROVAL: ${{ needs.assessment-approval.result }}
+        run: |
+          {
+            echo "<!-- modernize-cost -->"
+            echo "## AI cost of the execution stage"
+            echo
+            echo "Actual, recorded by gh-aw:"
+            echo
+            python3 .github/scripts/modernize_cost.py actual --artifacts usage
+            echo
+            echo "<details><summary>Estimate shown in the plan before approval</summary>"
+            echo
+            python3 .github/scripts/modernize_cost.py estimate --stages execution
+            echo
+            echo "</details>"
+          } > cost.md
+          cat cost.md >> "$GITHUB_STEP_SUMMARY"
+          gh pr comment "$PR" --body-file cost.md
+      - name: Mark ready or flag attention
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ needs.prepare.outputs.issue_number }}
+          PR: ${{ needs.prepare.outputs.pr_number }}
           BUILD: ${{ needs.verify-build.result }}
           STATIC: ${{ needs.verify-static.result }}
-          REVIEW: ${{ needs.modernize-conformance-reviewer.result }}
+          STATIC_DETAIL: ${{ needs.verify-static.outputs.detail }}
+          SPEC: ${{ needs.modernize-conformance-reviewer.result }}
+          STANDARDS: ${{ needs.modernize-standards-reviewer.result }}
         run: |
-          gh label create ready-for-human-review --color 0e8a16 --force >/dev/null
-          gh label create needs-attention --color d93f0b --force >/dev/null
-          if [ "$BUILD" = "success" ] && [ "$STATIC" = "success" ] && [ "$REVIEW" = "success" ]; then
+          # Read each reviewer's verdict line from its summary comment. gh-aw strips HTML markers from
+          # agent output, so match the provenance footer that gh-aw adds itself. A missing verdict is empty, not an error.
+          verdict() { gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate --jq ".[] | select(.body | contains(\"gh-aw-agentic-workflow: $1,\")) | .body" | grep -oE 'Verdict: (PASS|NEEDS ATTENTION)' | tail -n1 || true; }
+          # Stage status from both the job result and the verdict: a successful job with NEEDS ATTENTION is not done.
+          review_status() { if [ "$1" != "success" ] || [ -z "$2" ]; then echo failed; elif [ "$2" = "Verdict: PASS" ]; then echo done; else echo attention; fi; }
+          SPEC_VERDICT=$(verdict modernize-conformance-reviewer); STD_VERDICT=$(verdict modernize-standards-reviewer)
+          s() { if [ "$1" = "success" ]; then echo done; else echo failed; fi; }
+          python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Static checks" --status "$(s "$STATIC")" --detail "${STATIC_DETAIL:-see the verify-static job}"
+          python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Spec review" --status "$(review_status "$SPEC" "$SPEC_VERDICT")" --detail "${SPEC_VERDICT:-no verdict found}. modernize-conformance-reviewer"
+          python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Standards review" --status "$(review_status "$STANDARDS" "$STD_VERDICT")" --detail "${STD_VERDICT:-no verdict found}. modernize-standards-reviewer"
+          if [ "$BUILD" = "success" ] && [ "$STATIC" = "success" ] && [ "$SPEC" = "success" ] && [ "$STANDARDS" = "success" ] \
+             && [ "$SPEC_VERDICT" = "Verdict: PASS" ] && [ "$STD_VERDICT" = "Verdict: PASS" ]; then
             gh pr ready "$PR"
             gh pr edit "$PR" --add-label ready-for-human-review
-            python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Plan-conformance review" --status done --detail "Comment on the PR from modernize-conformance-reviewer"
-            python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Human review" --status attention --detail "Ready: review the pull request and merge when satisfied"
+            python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Human review" --status attention --detail "Ready: review pull request #$PR and merge when satisfied"
           else
             gh pr edit "$PR" --add-label needs-attention
-            if [ "$APPROVAL" = "failure" ] || [ "$APPROVAL" = "cancelled" ]; then
-              python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Assessment review" --status failed --detail "Not approved. No application file was changed"
-            fi
-            python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Plan-conformance review" --status failed --detail "Review result: $REVIEW"
-            python3 .github/scripts/modernize_tracker.py --pr "$PR" --stage "Human review" --status failed --detail "Not ready. Re-run the failed stage from the Actions run."
-            echo "::error::Pipeline is not green (approval=$APPROVAL build=$BUILD static=$STATIC review=$REVIEW)."
+            python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Human review" --status failed --detail "Not ready: pull request #$PR stays a draft. Read the failed check or review, then re-run that stage"
+            echo "::error::Pipeline is not green (build=$BUILD static=$STATIC spec=$SPEC/${SPEC_VERDICT:-none} standards=$STANDARDS/${STD_VERDICT:-none})."
             exit 1
           fi

@@ -1,23 +1,20 @@
 ---
-description: Worker - read-only analysis of source compatibility for the Asset Manager upgrade.
+description: Worker - read-only analysis of source compatibility for the Asset Manager upgrade. Reads the tool evidence and posts structured findings on the request issue.
 
 on:
   workflow_call:
     inputs:
       issue_number: { type: string, required: true }
-      pr_number: { type: string, required: true }
-      branch: { type: string, required: true }
-      plan_path: { type: string, required: true }
+      ref: { type: string, required: true }
       stage: { type: string, required: false, default: "modernize-compat-analyst" }
   workflow_dispatch:
     inputs:
       issue_number: { description: "Modernization Request issue number", type: string, required: true }
-      pr_number: { description: "Implementation pull request number", type: string, required: true }
-      branch: { description: "Implementation branch", type: string, required: true }
-      plan_path: { description: "Approved plan path", type: string, required: true }
+      ref: { description: "Commit to assess (main)", type: string, required: true }
       stage: { description: "Stage name. Keeps artifact names unique per worker. Leave the default.", type: string, required: false, default: "modernize-compat-analyst" }
 
 permissions:
+  actions: read
   contents: read
   issues: read
   pull-requests: read
@@ -39,12 +36,20 @@ skills:
   - .github/skills/pr-description
 
 checkout:
-  ref: ${{ inputs.branch }}
+  ref: ${{ inputs.ref }}
+
+# The tool evidence was measured by the assessment-facts job of the calling run.
+pre-agent-steps:
+  - name: Download the tool evidence
+    uses: actions/download-artifact@v8
+    with:
+      name: assessment-facts
+      path: .modernize/facts
 
 tools:
   github:
-    toolsets: [pull_requests]
-  bash: ["cat", "ls", "grep", "find", "head", "wc", "sort", "uniq"]
+    toolsets: [issues]
+  bash: ["cat", "ls", "grep", "find", "head", "tail", "wc", "sort", "uniq", "sed -n"]
 
 safe-outputs:
   add-comment:
@@ -59,7 +64,7 @@ timeout-minutes: 20
 Run the `modernize-compat-analyst` agent role for this task.
 
 - Modernization Request issue: #${{ inputs.issue_number }}
-- Implementation pull request: #${{ inputs.pr_number }} (branch `${{ inputs.branch }}`)
-- Approved plan: `${{ inputs.plan_path }}`
+- Commit under assessment: `${{ inputs.ref }}`
+- Tool evidence: `.modernize/facts/` (`facts.md`, `facts.json`, and raw tool output in `raw/`)
 
-Post your single comment on pull request #${{ inputs.pr_number }}.
+Post your single comment on issue #${{ inputs.issue_number }}.

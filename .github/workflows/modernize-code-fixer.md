@@ -71,6 +71,6 @@ Run the `modernize-code-fixer` agent role for this task.
 
 - Modernization Request issue: #${{ inputs.issue_number }}
 - Implementation pull request: #${{ inputs.pr_number }} (branch `${{ inputs.branch }}`)
-- Approved plan: `${{ inputs.plan_path }}`
+- Approved plan: `${{ inputs.plan_path }}`. The approved `assessment.md`, `findings.json` and `evidence/` are in the same folder.
 
 Push your commits to pull request #${{ inputs.pr_number }}.

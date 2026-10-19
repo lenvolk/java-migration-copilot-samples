@@ -5,7 +5,7 @@ description: Shared rules for the Asset Manager upgrade agents - scope, success 
 
 # Java Upgrade Rules (shared by all pipeline agents)
 
-These rules are modelled on the plan, execute, validate pattern of GitHub Copilot app modernization. Every pipeline agent follows them.
+These rules are modelled on the assess, plan, execute, validate order of GitHub Copilot app modernization. Every pipeline agent follows them.
 
 ## Scope
 
@@ -16,7 +16,7 @@ These rules are modelled on the plan, execute, validate pattern of GitHub Copilo
 ## Success criteria (checked by the pipeline, not by you)
 
 - Both modules compile on JDK 21: `./asset-manager/mvnw -B -ntp -f asset-manager/pom.xml clean test-compile`.
-- Tests are no worse than the baseline recorded in the tracker comment: `./asset-manager/mvnw -B -ntp -f asset-manager/pom.xml clean test`.
+- Tests are no worse than the approved baseline in `evidence/facts.json` (next to the plan): `./asset-manager/mvnw -B -ntp -f asset-manager/pom.xml clean test`.
 - `./asset-manager/mvnw -B -ntp -f asset-manager/pom.xml -DskipTests package` produces both module jars.
 - No `javax.persistence`, `javax.annotation`, `javax.servlet`, or `javax.validation` imports remain.
 

@@ -4,7 +4,7 @@
 
 .DESCRIPTION
   Creates an issue in YOUR fork from demo\beat4\modernization-request.md. Its first line is
-  /modernize-plan, which triggers the planner agent. Then watch the plan pull request appear.
+  /modernize, which starts the modernize-assessment workflow. Then watch the assessment report appear on the issue.
 
     .\demo\beat4\new-request.ps1
 #>
@@ -34,6 +34,7 @@ Write-Host ''
 Write-Host "Modernization Request created in ${target}:" -ForegroundColor Green
 Write-Host "  $url"
 Write-Host ''
-Write-Host 'Watch the planner agent (takes a few minutes):'
-Write-Host '  gh run list --workflow modernize-planner.lock.yml --limit 3'
-Write-Host '  gh pr list --search "[modernization-plan] in:title"'
+Write-Host 'Watch the assessment (tools first, then two analyst agents; about 10 to 15 minutes):'
+Write-Host '  gh run list --workflow modernize-assessment.yml --limit 3'
+Write-Host '  gh run watch'
+Write-Host 'The Assessment report comment appears on the issue. Approve it in the run (Review deployments) to get the plan pull request.'

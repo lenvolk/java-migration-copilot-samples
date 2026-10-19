@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Create or update the single 'tracker' comment on the modernization pull request.
+"""Create or update the single status board ('tracker') on the Modernization Request issue.
 
-The comment is the shared status board of the pipeline: one row per stage.
-Agents read it for the baseline test result. Plain jobs write to it.
+One row per stage, across both workflows: modernize-assessment (assess, approve, plan) and
+modernize-pipeline (execute, verify, review). Plain jobs write to it. Agents never do.
 
 Usage:
-  modernize_tracker.py --pr 12 --stage "Baseline tests" --status "done" --detail "1 run, 1 failed"
+  modernize_tracker.py --issue 12 --stage "Build upgrade" --status done --detail "..." [--link URL]
 Requires GH_TOKEN and GITHUB_REPOSITORY in the environment.
 """
 import argparse
@@ -16,22 +16,29 @@ import sys
 
 MARKER = "<!-- modernize-tracker -->"
 STAGES = [
-    "Plan approved",
-    "Baseline tests",
-    "Compatibility analysis",
-    "Dependency analysis",
-    "Assessment review",
-    "Build upgrade",
-    "Code fixes",
-    "Build and test verification",
-    "Plan-conformance review",
-    "Human review",
+    ("Request", "Request received"),
+    ("Assess", "Baseline and tool evidence"),
+    ("Assess", "Compatibility analysis"),
+    ("Assess", "Dependency analysis"),
+    ("Assess", "Assessment report"),
+    ("Gate 1", "Assessment approval"),
+    ("Plan", "Plan drafted"),
+    ("Plan", "Plan validation"),
+    ("Gate 2", "Plan approval"),
+    ("Execute", "Build upgrade"),
+    ("Execute", "Code fixes"),
+    ("Verify", "Build and test verification"),
+    ("Verify", "Static checks"),
+    ("Review", "Spec review"),
+    ("Review", "Standards review"),
+    ("Gate 3", "Human review"),
 ]
-ICONS = {"pending": "⏳", "running": "🔄", "done": "✅", "failed": "❌", "attention": "⚠️"}
+STAGE_NAMES = [name for _, name in STAGES]
+ICONS = {"pending": "⏳", "running": "🔄", "done": "✅", "failed": "❌", "attention": "⚠️", "skipped": "⏭️"}
 
 
 def gh(*args, stdin=None):
-    result = subprocess.run(["gh", *args], input=stdin, capture_output=True, text=True)
+    result = subprocess.run(["gh", *args], input=stdin, capture_output=True, text=True, encoding="utf-8")
     if result.returncode != 0:
         sys.exit(f"gh {' '.join(args)} failed: {result.stderr.strip()}")
     return result.stdout
@@ -40,60 +47,72 @@ def gh(*args, stdin=None):
 def parse_rows(body):
     rows = {}
     for line in body.splitlines():
-        if line.startswith("|") and not line.startswith("| Stage") and not line.startswith("|---"):
-            cells = [c.strip() for c in line.strip("|").split("|")]
-            if len(cells) >= 3:
-                rows[cells[0]] = (cells[1], cells[2])
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if line.startswith("|") and len(cells) >= 4 and cells[1] in STAGE_NAMES:
+            rows[cells[1]] = (cells[2], cells[3])
     return rows
 
 
-def render(rows, run_url):
+def parse_runs(body):
+    runs = []
+    for line in body.splitlines():
+        if line.startswith("- Run: "):
+            runs.append(line[len("- Run: "):].strip())
+    return runs
+
+
+def render(rows, runs):
+    done = sum(1 for name in STAGE_NAMES if rows.get(name, ("", ""))[0].endswith(("done", "skipped")))
     lines = [
         MARKER,
-        "## Modernization pipeline status",
+        "## Modernization status",
         "",
-        f"Pipeline run: {run_url}",
+        f"{done} of {len(STAGES)} stages done. Three human gates: approve the assessment, approve the plan (merge the plan pull request), review the Implementation pull request.",
         "",
-        "| Stage | Status | Detail |",
-        "|---|---|---|",
+        "| Phase | Stage | Status | Detail |",
+        "|---|---|---|---|",
     ]
-    for stage in STAGES:
-        status, detail = rows.get(stage, (f"{ICONS['pending']} pending", ""))
-        lines.append(f"| {stage} | {status} | {detail} |")
-    lines += ["", "_Updated automatically. Re-run a failed stage from the Actions run; the branch keeps all earlier work._"]
+    for phase, name in STAGES:
+        status, detail = rows.get(name, (f"{ICONS['pending']} pending", ""))
+        lines.append(f"| {phase} | {name} | {status} | {detail} |")
+    if runs:
+        lines += ["", "Workflow runs:", ""] + [f"- Run: {r}" for r in runs]
+    lines += ["", "_Updated automatically by the modernization workflows. Re-run a failed job from its Actions run._"]
     return "\n".join(lines)
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pr", required=True)
+    parser.add_argument("--issue", required=True)
     parser.add_argument("--stage")
     parser.add_argument("--status", choices=ICONS.keys())
     parser.add_argument("--detail", default="")
-    parser.add_argument("--run-url", default="")
+    parser.add_argument("--link", default="", help="URL appended to the detail")
+    parser.add_argument("--run", default="", help="Workflow run to list once, as 'name: URL'")
     args = parser.parse_args()
 
     repo = os.environ["GITHUB_REPOSITORY"]
-    out = gh("api", f"repos/{repo}/issues/{args.pr}/comments", "--paginate", "--jq", ".[] | {id, body}")
+    out = gh("api", f"repos/{repo}/issues/{args.issue}/comments", "--paginate", "--jq", ".[] | {id, body}")
     comments = [json.loads(line) for line in out.splitlines() if line.strip()]
     existing = next((c for c in comments if MARKER in c["body"]), None)
 
     rows = parse_rows(existing["body"]) if existing else {}
-    run_url = args.run_url
-    if existing and not run_url:
-        for line in existing["body"].splitlines():
-            if line.startswith("Pipeline run:"):
-                run_url = line.split(":", 1)[1].strip()
+    runs = parse_runs(existing["body"]) if existing else []
+    if args.run and args.run not in runs:
+        runs.append(args.run)
     if args.stage:
-        if args.stage not in STAGES:
+        if args.stage not in STAGE_NAMES:
             sys.exit(f"Unknown stage: {args.stage}")
-        rows[args.stage] = (f"{ICONS[args.status]} {args.status}", args.detail.replace("|", "/").replace("\n", " "))
+        detail = args.detail.replace("|", "/").replace("\n", " ")
+        if args.link:
+            detail = f"{detail} [link]({args.link})".strip()
+        rows[args.stage] = (f"{ICONS[args.status]} {args.status}", detail)
 
-    body = render(rows, run_url)
+    body = render(rows, runs)
     if existing:
         gh("api", "-X", "PATCH", f"repos/{repo}/issues/comments/{existing['id']}", "-F", "body=@-", stdin=body)
     else:
-        gh("api", "-X", "POST", f"repos/{repo}/issues/{args.pr}/comments", "-F", "body=@-", stdin=body)
+        gh("api", "-X", "POST", f"repos/{repo}/issues/{args.issue}/comments", "-F", "body=@-", stdin=body)
 
 
 if __name__ == "__main__":

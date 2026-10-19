@@ -64,7 +64,7 @@ if (-not $Force) {
 }
 
 foreach ($pr in $prs) {
-  # No --comment: a comment would fire the planner's issue_comment trigger and create new runs.
+  # No --comment: a comment would fire the issue_comment trigger of modernize-assessment and create new runs.
   gh pr close $pr.number --repo $target 2>&1 | Out-Null
   Write-Host "Closed PR #$($pr.number)"
 }

@@ -1,69 +1,92 @@
 ---
-description: Stage 2 - plans the Asset Manager Java modernization and opens a plan pull request for human approval.
+description: Stage 2 - writes the Asset Manager modernization plan from the approved assessment into the plan pull request, for human approval.
 
 on:
-  slash_command:
-    name: modernize-plan
-    events: [issues, issue_comment]
+  workflow_call:
+    inputs:
+      issue_number: { type: string, required: true }
+      pr_number: { type: string, required: true }
+      branch: { type: string, required: true }
+      request_dir: { type: string, required: true }
+      stage: { type: string, required: false, default: "modernize-planner" }
+  workflow_dispatch:
+    inputs:
+      issue_number: { description: "Modernization Request issue number", type: string, required: true }
+      pr_number: { description: "Plan pull request number", type: string, required: true }
+      branch: { description: "Plan branch, for example modernize/plan-12", type: string, required: true }
+      request_dir: { description: "Folder with assessment.md, for example docs/modernization/requests/12", type: string, required: true }
+      stage: { description: "Stage name. Keeps artifact names unique per worker. Leave the default.", type: string, required: false, default: "modernize-planner" }
 
 permissions:
   contents: read
   issues: read
-  copilot-requests: none
+  pull-requests: read
 
 engine:
   id: copilot
   model: claude-sonnet-4.6
+  concurrency:
+    group: "gh-aw-copilot-modernize-planner-${{ inputs.issue_number }}"
+
+concurrency:
+  job-discriminator: ${{ inputs.issue_number }}
 
 skills:
   - .github/skills/java-modernization
   - .github/skills/pr-description
 
+checkout:
+  ref: ${{ inputs.branch }}
+
+tools:
+  github:
+    toolsets: [issues, pull_requests]
+  edit:
+  bash: ["cat", "ls", "grep", "find", "head", "tail", "wc", "sed -n"]
+
 safe-outputs:
-  create-pull-request:
-    title-prefix: "[modernization-plan] "
-    draft: false
-    auto-close-issue: false
+  push-to-pull-request-branch:
+    target: "*"
+    required-title-prefix: "[modernization-plan] "
+    if-no-changes: error
+    fallback-as-pull-request: false
     max: 1
+  update-pull-request:
+    target: "*"
+    title: false
+    body: true
+    max: 1
+
+timeout-minutes: 20
 ---
 
 # modernize-planner
 
-Create a human-reviewable modernization plan for the Asset Manager application. This workflow plans the work. It never changes application code.
+Write a human-reviewable modernization plan for Asset Manager from the **approved** assessment. A human approved the assessment report at gate 1. A human approves this plan at gate 2 by merging the pull request. You never change application code.
 
 ## Context
 
-- The triggering issue is the Modernization Request.
-- The application is in `asset-manager/`.
-- The source baseline is Java 8 and Spring Boot 2.7.
-- The approved target for this demo is Java 21 and Spring Boot 3.5.
-- After a human merges the plan pull request, the `modernize-pipeline` workflow starts. It runs read-only analysis, publishes an assessment report, and waits for a second human approval before any code changes.
+- Modernization Request issue: #${{ inputs.issue_number }}
+- Plan pull request: #${{ inputs.pr_number }} on branch `${{ inputs.branch }}`. It already contains, in `${{ inputs.request_dir }}/`:
+  - `assessment.md`: the approved assessment report, with finding IDs and the reviewer decisions.
+  - `findings.json`: the same findings as data. Every ID in it must appear in your plan.
+  - `evidence/facts.json`, `evidence/rewrite.patch`, `evidence/osv.json`, `evidence/dependency-tree-*.txt`, `evidence/jdeps-*.txt`: tool output.
+  - `cost-estimate.md`: estimated AI credits of the execution stage. The pipeline copies it into your plan.
+- After the merge, `modernize-pipeline` runs `modernize-build-upgrader`, then `modernize-code-fixer`, then deterministic verification, then `modernize-conformance-reviewer` and `modernize-standards-reviewer` in parallel, and opens a draft Implementation pull request.
 
 ## Task
 
-1. Read the triggering issue and inspect the Asset Manager Maven project.
-2. Verify the current Java and Spring Boot versions from `asset-manager/pom.xml`.
-3. Create exactly one file:
-
-   `docs/modernization/requests/<issue-number>-asset-manager-java-upgrade.md`
-
-4. Follow the plan format and scope rules in the `java-modernization` skill, including the `Run Parameters` block.
-5. Request one pull request containing only that plan file.
-
-## Pull request
-
-- Title: `Plan Asset Manager Java modernization for #<issue-number>`
-- Body: write it with the `pr-description` skill, plan pull request variant. It has three sections: Summary, Evidence, Merge Danger.
-  - Summary: the flow diagram, the version diff, and the execution tree. Take every version and count from the files you read.
-  - Evidence: the verified baseline with file paths, and the checks the Implementation pull request must pass.
-  - Merge Danger: merging is the explicit human approval that starts the `modernize-pipeline` workflow. The pipeline first runs read-only analysis and stops for a second human approval, so no application code changes before that. Application code is unchanged by this pull request.
-  - Link the Modernization Request by number in the first sentence. Do not close it: it stays open until the Implementation pull request merges.
-  - Follow the writing rules in the skill.
+1. Read the request issue, `assessment.md`, `findings.json` and the evidence. Read the issue comments for any reviewer note on the assessment.
+2. Create exactly one file: `${{ inputs.request_dir }}/plan.md`, in the format of the `java-modernization` skill.
+3. Assign every finding ID from `findings.json` to exactly one execution step. Findings ranked `No change` go to the coverage table with step `none`.
+4. Take every version and count from the files you read. Never invent one.
+5. Leave the `## Cost Estimate` section with the single line `Filled in by the pipeline.` The pipeline replaces it with measured numbers.
+6. Push the file to pull request #${{ inputs.pr_number }} with the push safe output. One commit: `docs: modernization plan for #${{ inputs.issue_number }}`.
+7. Replace the pull request description with the `pr-description` skill, plan pull request variant (Summary, Evidence, Merge Danger). Link the request issue by number in the first sentence. Do not close the issue.
 
 ## Guardrails
 
-- Do not edit files under `asset-manager/`.
-- Do not run the modernization, modify dependencies, or generate application code.
-- Do not include Azure service migration, containerization, deployment, observability, or production rollout.
-- Do not create more than one plan file or more than one pull request.
-- If the repository does not contain `asset-manager/` or its baseline cannot be verified, call `noop` and explain the mismatch.
+- Do not edit any file outside `${{ inputs.request_dir }}/plan.md`.
+- Do not edit `assessment.md`, `findings.json` or the evidence; they are the approved record.
+- Do not include Azure service migration, containerization, deployment, CI/CD, observability, or production rollout in the execution steps.
+- If `assessment.md` or `findings.json` is missing, push nothing and explain the problem.
