@@ -115,7 +115,7 @@ The status board is one comment on the request issue, titled **Modernization sta
 .\demo\beat4\new-request.ps1
 ```
 
-The issue body starts with `/modernize`. That starts [modernize-assessment.yml](../../.github/workflows/modernize-assessment.yml). Only the repository owner, members and collaborators can start it.
+The issue holds only what a developer who inherited the app would write: `/modernize` and three lines of intent, no versions. That starts [modernize-assessment.yml](../../.github/workflows/modernize-assessment.yml); only the repository owner, members and collaborators can start it. Within a minute the pipeline posts **Modernization request, expanded** (business outcome, current versions read from `pom.xml`, the approved target, how the request is handled, out of scope) and then the **Modernization status** board.
 
 ### 4.2 Watch the assessment
 
@@ -218,7 +218,7 @@ Each agent workflow selects its model under `engine.model`. All use the Copilot 
 
 | Workflow | Stage | Model ID | Why |
 |---|---|---|---|
-| `modernize-compat-analyst` | Assess | `gpt-5.6-luna` | Bounded, read-only source analysis from tool evidence |
+| `modernize-compat-analyst` | Assess | `claude-haiku-5.5` | Bounded, read-only source analysis from tool evidence |
 | `modernize-dependency-analyst` | Assess | `claude-haiku-4.5` | Dependency decisions from the measured tree |
 | `modernize-planner` | Plan | `claude-sonnet-5.5` | Reasoning and readable plan writing |
 | `modernize-build-upgrader` | Execute | `claude-haiku-5.5` | Narrow, plan-guided POM edits |
