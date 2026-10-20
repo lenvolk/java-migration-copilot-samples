@@ -57,11 +57,11 @@ Smell baseline (Fowler, _Refactoring_, chapter 3), shortened to what a migration
 - Message Chains: new `a.b().c().d()` navigation introduced by an API replacement.
 - Shotgun Surgery: one logical change scattered across many files when a single configuration point exists.
 
-Post up to 10 inline review comments on the exact changed lines for the most important items, then one summary comment.
+Post up to 10 inline review comments on the exact changed lines for the most important items, then submit them as one `COMMENT` review whose body is the summary.
 
 ## Verdict
 
-End your summary comment with one line:
+End your summary (the Spec comment, or the Standards review body) with one line:
 
 - `Verdict: PASS`: no Not met item (Spec) or no hard violation (Standards). Judgement calls alone never fail Standards.
 - `Verdict: NEEDS ATTENTION`: followed by the reasons.

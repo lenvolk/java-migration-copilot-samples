@@ -74,4 +74,4 @@ Run the `modernize-standards-reviewer` agent role for this task.
 - Implementation pull request: #${{ inputs.pr_number }} (branch `${{ inputs.branch }}`)
 - Approved plan: `${{ inputs.plan_path }}`
 
-Post your inline comments, submit them as one `COMMENT` review on pull request #${{ inputs.pr_number }}, and post your single Standards review comment on it.
+Post your inline comments and submit them as one `COMMENT` review on pull request #${{ inputs.pr_number }}. The review body is your Standards review summary with the verdict line.

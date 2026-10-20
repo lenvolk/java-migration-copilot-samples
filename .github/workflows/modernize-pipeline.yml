@@ -441,9 +441,13 @@ jobs:
           SPEC: ${{ needs.modernize-conformance-reviewer.result }}
           STANDARDS: ${{ needs.modernize-standards-reviewer.result }}
         run: |
-          # Read each reviewer's verdict line from its summary comment. gh-aw strips HTML markers from
+          # Read each reviewer's verdict line from its summary comment or review. gh-aw strips HTML markers from
           # agent output, so match the provenance footer that gh-aw adds itself. A missing verdict is empty, not an error.
-          verdict() { gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate --jq ".[] | select(.body | contains(\"gh-aw-agentic-workflow: $1,\")) | .body" | grep -oE 'Verdict: (PASS|NEEDS ATTENTION)' | tail -n1 || true; }
+          verdict() {
+            gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" --paginate --jq ".[] | select(.body | contains(\"gh-aw-agentic-workflow: $1,\")) | .body" > "verdict-$1.txt" || true
+            gh api "repos/$GITHUB_REPOSITORY/pulls/$PR/reviews" --paginate --jq ".[] | select(.body | contains(\"gh-aw-agentic-workflow: $1,\")) | .body" >> "verdict-$1.txt" || true
+            grep -oE 'Verdict: (PASS|NEEDS ATTENTION)' "verdict-$1.txt" | tail -n1 || true
+          }
           # Stage status from both the job result and the verdict: a successful job with NEEDS ATTENTION is not done.
           review_status() { if [ "$1" != "success" ] || [ -z "$2" ]; then echo failed; elif [ "$2" = "Verdict: PASS" ]; then echo done; else echo attention; fi; }
           SPEC_VERDICT=$(verdict modernize-conformance-reviewer); STD_VERDICT=$(verdict modernize-standards-reviewer)

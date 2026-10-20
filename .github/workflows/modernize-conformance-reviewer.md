@@ -24,7 +24,7 @@ permissions:
 
 engine:
   id: copilot
-  model: gpt-6.1-sol
+  model: claude-sonnet-5.5
   concurrency:
     group: "gh-aw-copilot-modernize-conformance-reviewer-${{ inputs.issue_number }}"
 
