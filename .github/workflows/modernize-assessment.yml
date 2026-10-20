@@ -76,6 +76,11 @@ jobs:
           fi
           gh label create modernization-request --color 5319e7 --force >/dev/null
           gh issue edit "$ISSUE" --add-label modernization-request
+      - name: Expand the request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ steps.resolve.outputs.issue_number }}
+        run: python3 .github/scripts/modernize_assessment.py expand-request --issue "$ISSUE" --project asset-manager
       - name: Start the tracker
         env:
           GH_TOKEN: ${{ github.token }}

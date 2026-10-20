@@ -21,7 +21,7 @@ permissions:
 
 engine:
   id: copilot
-  model: gpt-5.6-luna
+  model: claude-haiku-5.5
   concurrency:
     group: "gh-aw-copilot-modernize-compat-analyst-${{ inputs.issue_number }}"
 

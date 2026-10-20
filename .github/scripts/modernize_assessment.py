@@ -313,6 +313,88 @@ def build(args):
     print(f"assessment: {len(findings)} findings, report {len(report)} chars, comment {'full' if comment is report else 'condensed'}")
 
 
+REQUEST_MARKER = "<!-- modernize-request -->"
+# The organization's approved baseline. The pipeline enforces it; the developer does not need to know it.
+BASELINE = {"java": "21", "java_label": "Java 21 (LTS)", "spring_boot": "3.5.x", "spring_boot_label": "Spring Boot 3.5.x (latest patch)"}
+
+
+def expand_request(args):
+    """Turn the developer's short /modernize request into the full request the pipeline will execute."""
+    repo = os.environ["GITHUB_REPOSITORY"]
+    issue = json.loads(gh("api", f"repos/{repo}/issues/{args.issue}", "--jq", "{body, user: .user.login}"))
+    text = "\n".join(line for line in (issue["body"] or "").splitlines() if not line.strip().startswith("/modernize")).strip()
+    build = modernize_facts.build_facts(pathlib.Path(args.project), pathlib.Path("."))
+    boot = modernize_facts.maven_latest("org.springframework.boot", "spring-boot-starter-parent", r"3\.5\.\d+") or BASELINE["spring_boot"]
+    modules = ", ".join(f"`{m['name']}`" for m in build["modules"])
+    quoted = "\n".join(f"> {line}" if line.strip() else ">" for line in (text or "(no description)").splitlines())
+    lines = [
+        REQUEST_MARKER,
+        "## Modernization request, expanded",
+        "",
+        f"@{issue['user']} asked:",
+        "",
+        quoted,
+        "",
+        "The pipeline expanded it into the request below. The current state is read from the repository, not assumed. Nothing changes until a human approves the assessment (gate 1) and merges the plan (gate 2).",
+        "",
+        "### Business outcome",
+        "",
+        f"Keep `{args.project}` on a supported runtime and framework so the team can keep developing and patching it, without changing what the application does.",
+        "",
+        "### Requested modernization",
+        "",
+        "| | Now (read from the build files) | Target (approved baseline) |",
+        "|---|---|---|",
+        f"| Java | {build['java_version']} (`{build['pom_path']}`) | {BASELINE['java_label']} |",
+        f"| Spring Boot | {build['spring_boot_version']} (`{build['pom_path']}`) | {BASELINE['spring_boot_label']}, {boot} today |",
+        f"| Build | Maven Wrapper {build['maven_wrapper']}, modules {modules} | same modules, Maven 3.9.x |",
+        "| Behavior | as today | unchanged for web and worker |",
+        "| Proof | baseline tests on the current JDK | build and tests on JDK 21 no worse than the baseline |",
+        "",
+        "```diff",
+        f" {args.project}/",
+        f"-  Java {build['java_version']}, Spring Boot {build['spring_boot_version']}",
+        f"+  Java {BASELINE['java']}, Spring Boot {boot}",
+        "   web and worker behavior    unchanged",
+        "```",
+        "",
+        "### How this request is handled",
+        "",
+        "```mermaid",
+        "flowchart LR",
+        '    R["This issue"] --> A["Assess: tools measure, 2 agents find"]',
+        '    A --> G1{"Gate 1: approve the assessment"}',
+        '    G1 --> P["Plan: planner agent, plan PR"]',
+        '    P --> G2{"Gate 2: merge the plan"}',
+        '    G2 --> X["Execute: agents change code on a branch"]',
+        '    X --> V["Verify: JDK 21 build, tests, scans"]',
+        '    V --> G3{"Gate 3: review the Implementation PR"}',
+        "    style R fill:#ffec99,stroke:#f08c00",
+        "```",
+        "",
+        "1. Standard Java tools measure the application: tests, dependency tree, jdeps, SpotBugs, an OpenRewrite preview, known advisories. No AI.",
+        "2. Two read-only agents turn the measurements into findings with IDs. One Assessment Report appears on this issue. **Gate 1:** a human approves it.",
+        "3. A planner agent writes the plan into a pull request. **Gate 2:** a human merges it.",
+        "4. Agents change the code on a branch, Actions jobs verify it, two reviewer agents check it. **Gate 3:** a human reviews the Implementation pull request.",
+        "",
+        "### Out of scope",
+        "",
+        "Azure service migration, containerization, deployment, CI/CD, observability, production rollout, and Spring Boot 4. "
+        "The pipeline refuses steps that touch them.",
+        "",
+        "### What you do next",
+        "",
+        "Nothing until the **Assessment report** comment appears here, in about 10 to 15 minutes. The **Modernization status** comment below tracks every stage.",
+    ]
+    body = "\n".join(lines) + "\n"
+    existing = next((c for c in list_comments(repo, args.issue) if REQUEST_MARKER in c["body"]), None)
+    if existing:
+        gh("api", "-X", "PATCH", f"repos/{repo}/issues/comments/{existing['id']}", "-F", "body=@-", stdin=body)
+    else:
+        gh("api", "-X", "POST", f"repos/{repo}/issues/{args.issue}/comments", "-F", "body=@-", stdin=body)
+    print(f"expanded request: Java {build['java_version']} -> {BASELINE['java']}, Spring Boot {build['spring_boot_version']} -> {boot}")
+
+
 def find_approver(repo, run_id):
     out = gh("api", f"repos/{repo}/actions/runs/{run_id}/approvals", check=False)
     try:
@@ -457,6 +539,9 @@ def main():
     b.add_argument("--workflows", default=".github/workflows")
     a = sub.add_parser("approve")
     a.add_argument("--issue", required=True)
+    e = sub.add_parser("expand-request")
+    e.add_argument("--issue", required=True)
+    e.add_argument("--project", default="asset-manager")
     s = sub.add_parser("stamp")
     s.add_argument("--report", required=True)
     s.add_argument("--findings", required=True)
@@ -471,7 +556,7 @@ def main():
     v.add_argument("--out", required=True)
     v.add_argument("--github-output")
     args = parser.parse_args()
-    {"build": build, "approve": approve, "stamp": stamp, "validate-plan": validate_plan}[args.command](args)
+    {"build": build, "approve": approve, "stamp": stamp, "validate-plan": validate_plan, "expand-request": expand_request}[args.command](args)
 
 
 if __name__ == "__main__":

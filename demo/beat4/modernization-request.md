@@ -1,44 +1,4 @@
 /modernize
 
-## Business outcome
-
-Prepare the Asset Manager application for continued development on a supported Java and Spring Boot baseline.
-
-## Requested modernization
-
-- Upgrade Java 8 to Java 21.
-- Upgrade Spring Boot 2.7 to Spring Boot 3.5.
-- Preserve the existing web and worker behavior.
-- Include build and test validation criteria.
-- Show me the assessment before any plan, and the plan before any code change.
-
-## How this request is handled
-
-```mermaid
-flowchart LR
-    R["This issue"] --> A["Assess: tools measure, 2 agents find"]
-    A --> G1{"Gate 1: approve the assessment"}
-    G1 --> P["Plan: planner agent, plan PR"]
-    P --> G2{"Gate 2: merge the plan"}
-    G2 --> X["Execute: agents change code on a branch"]
-    X --> V["Verify: JDK 21 build, tests, scans"]
-    V --> G3{"Gate 3: review the Implementation PR"}
-```
-
-```diff
- asset-manager/
--  Java 8, Spring Boot 2.7
-+  Java 21, Spring Boot 3.5
-   web and worker behavior    unchanged
-```
-## Demo boundary
-
-This request covers only the runtime and framework upgrade of `asset-manager/`:
-
-1. Business intent
-2. Assessment, approved by a human
-3. Modernization plan, approved by a human
-4. Runtime and framework modernization
-5. Reviewable code changes, reviewed by a human
-
-Azure service migration, containerization, deployment, CI/CD, and production monitoring are out of scope.
+I inherited Asset Manager. Bring it to our supported Java and Spring Boot baseline.
+Keep web and worker behavior the same. No Azure migration or deployment changes.

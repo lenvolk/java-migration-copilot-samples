@@ -4,7 +4,10 @@
 
 .DESCRIPTION
   Creates an issue in YOUR fork from demo\beat4\modernization-request.md. Its first line is
-  /modernize, which starts the modernize-assessment workflow. Then watch the assessment report appear on the issue.
+  /modernize, which starts the modernize-assessment workflow. The developer writes only three lines;
+  within a minute the pipeline posts the expanded request (business outcome, current and target versions
+  read from the build files, how the request is handled, out of scope), then the status board, and later
+  the assessment report.
 
     .\demo\beat4\new-request.ps1
 #>
@@ -25,7 +28,7 @@ if ($target -eq $Upstream) { throw "origin points at the upstream repository $Up
 
 $body = Get-Content demo\beat4\modernization-request.md -Raw
 $url = gh issue create --repo $target `
-  --title 'Modernize Asset Manager to Java 21 and Spring Boot 3.5' `
+  --title 'Modernize Asset Manager' `
   --label modernization-request `
   --body $body
 if ($LASTEXITCODE -ne 0 -or -not $url) { throw 'Creating the Modernization Request failed. Run .\demo\beat4\setup.ps1 -CheckOnly and fix any MANUAL row.' }
