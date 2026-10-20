@@ -171,11 +171,11 @@ After approval the run opens a draft pull request `[modernization-plan] Plan Ass
 | `cost-estimate.md` | Estimated AI credits of the execution stage |
 | `plan.md` | The plan: Run Parameters, steps with owned finding IDs and diffs, a Finding Coverage table, Validation, Risks and Rollback, Cost Estimate, Approval Checklist |
 
-Merging the pull request is the approval. Use **Squash and merge**, or:
+Merging the pull request is the approval. Use **Squash and merge** and keep the branch (the demo shows `modernize/plan-<N>` later), or:
 
 ```powershell
 $planPr = gh pr list --repo lenvolk/java-migration-copilot-samples --search "[modernization-plan] in:title" --state open --json number --jq '.[0].number'
-gh pr merge $planPr --repo lenvolk/java-migration-copilot-samples --squash --delete-branch
+gh pr merge $planPr --repo lenvolk/java-migration-copilot-samples --squash
 ```
 
 ### 4.5 Watch the execution
