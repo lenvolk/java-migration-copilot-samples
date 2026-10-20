@@ -218,25 +218,26 @@ Each agent workflow selects its model under `engine.model`. All use the Copilot 
 
 | Workflow | Stage | Model ID | Why |
 |---|---|---|---|
-| `modernize-compat-analyst` | Assess | `gpt-5.4-mini` | Bounded, read-only source analysis from tool evidence |
+| `modernize-compat-analyst` | Assess | `gpt-5.6-luna` | Bounded, read-only source analysis from tool evidence |
 | `modernize-dependency-analyst` | Assess | `claude-haiku-4.5` | Dependency decisions from the measured tree |
-| `modernize-planner` | Plan | `claude-sonnet-4.6` | Reasoning and readable plan writing |
-| `modernize-build-upgrader` | Execute | `gpt-5-mini` | Narrow, plan-guided POM edits |
-| `modernize-code-fixer` | Execute | `gpt-5.3-codex` | Java edits and the compile, test, fix loop |
-| `modernize-conformance-reviewer` | Review (Spec) | `gpt-5.4` | Traceability of the diff to the plan |
-| `modernize-standards-reviewer` | Review (Standards) | `claude-sonnet-5.5` | Rule and smell review of the diff |
+| `modernize-planner` | Plan | `claude-sonnet-5.5` | Reasoning and readable plan writing |
+| `modernize-build-upgrader` | Execute | `claude-haiku-5.5` | Narrow, plan-guided POM edits |
+| `modernize-code-fixer` | Execute | `claude-sonnet-5.5` | Java edits and the compile, test, fix loop |
+| `modernize-conformance-reviewer` | Review (Spec) | `claude-sonnet-5.5` | Traceability of the diff to the plan |
+| `modernize-standards-reviewer` | Review (Standards) | `claude-sonnet-5` | Rule and smell review, on a different model than Spec |
 
-Estimate per full run (`python .github/scripts/modernize_cost.py estimate`), from token counts measured on a real run of this pipeline and the [GitHub Copilot price list](https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing). 1 AI credit = $0.01:
+Model compatibility in gh-aw v0.89.21, learned in the pre-run: the integration offers a fixed list of models (the error `not available for integrator "agentic-workflows"` lists them), and the newest OpenAI models (`gpt-5.3-codex`, `gpt-5.6-*`, `gpt-6.x`) fail when they edit files through tools. Agents that edit files or run long tool loops therefore use Claude. Recheck after upgrading gh-aw.
 
-| Stage | Agents | Estimated AI credits | USD |
+Measured on the full pre-run of 2026-10-19 (`python .github/scripts/modernize_cost.py estimate` reproduces it). 1 AI credit = $0.01:
+
+| Stage | Agents | AI credits (agent + threat detection) | USD |
 |---|---|---|---|
-| Assess | 2 analysts + threat detection | about 20 (12 to 39) | about $0.20 |
-| Plan | planner + threat detection | about 50 (30 to 100) | about $0.50 |
-| Execute | 4 agents + threat detection | about 86 (52 to 194) | about $0.86 |
-| **Total** | 7 agents | **about 156 (95 to 332)** | **about $1.56** |
+| Assess | 2 analysts | 37.5 | $0.37 |
+| Plan | planner | 45.9 | $0.46 |
+| Execute | 4 agents | 112.3 | $1.12 |
+| **Total** | 7 agents | **195.6 (estimate range 155 to 331)** | **about $1.96** |
 
-The report, the plan and the Implementation pull request show the same estimate and the **actual** credits that gh-aw recorded for each agent. Every gh-aw agent comment also ends with its own credit count. Tools and checks use GitHub Actions minutes and no AI credits. These are demo choices, not benchmarks; model access depends on the token owner and policy. Rehearse a full run before presenting. After changing a model, run `gh aw compile`; the estimate follows the model automatically.
-
+About 30% is threat detection: after every agent, gh-aw checks its output on the same model before any write. The report, the plan and the Implementation pull request show the estimate and the **actual** credits per agent, and every gh-aw agent comment ends with its own credit count. Tools and checks use GitHub Actions minutes and no AI credits. After changing a model, run `gh aw compile`; the estimate follows the model automatically.
 ## Timeline (estimates; record your own during the pre-run)
 
 | Stage | Typical time |
@@ -305,6 +306,10 @@ Keep your pre-run until after the customer meeting.
 | Agent cannot download Maven dependencies | The workflow allows the `java` network ecosystem. Check the agent log for a blocked domain and add it under `network.allowed` in that agent's workflow `.md`, then recompile |
 | An agent's comment shows another agent's content, or `safe_outputs` fails with `No handler loaded for type` | Artifact name collision. Each worker needs a unique `stage` input (already set). If you add a worker, give it its own default |
 | `gh extension upgrade aw` fails with SAML | Ignore it if `gh aw version` is v0.89.21 or newer |
+| Agent fails with `not available for integrator "agentic-workflows"` | Pick a model from the list in the error, set `engine.model`, `gh aw compile`, push, start again |
+| Agent fails with `Expected an ID that begins with 'fc'` or `Unsupported Responses custom tool` | A newer OpenAI model used a tool path this gh-aw version cannot relay. Use a Claude model for that agent |
+| Agent reports an incomplete result because a shell command was denied | Widen that agent's `tools.bash` list; the two writers already allow all commands inside the sandbox |
+| gh-aw opens an issue `[aw] ... failed` | gh-aw reports agent failures as issues. Read it, fix, re-run, close it. `reset.ps1 -Full` closes it too |
 
 ## Files in this repository
 

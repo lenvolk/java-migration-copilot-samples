@@ -44,23 +44,20 @@ PRICES = {
     "claude-opus-5.5": (4.00, 0.20, 5.00, 20.00),
 }
 
-# Tokens per agent run, measured on pipeline run 38800093610 and planner run 38796634967 (2026-10-15).
-# requests, input, output, cache read, cache write. `scale` adjusts for the more detailed prompts and
-# outputs of this version (evidence files to read, structured findings, traceability tables).
+# Tokens per agent run, measured on the full pre-run of 2026-10-19 (assessment and plan run 39338189682,
+# execution run 39346443059): requests, input, output, cache read, cache write. Every gh-aw agent run is
+# followed by a threat-detection job that reviews its output on the same model; it is measured separately.
 PROFILES = {
-    "modernize-compat-analyst": {"tokens": (6, 5400, 2400, 150000, 29000), "scale": 1.6},
-    "modernize-dependency-analyst": {"tokens": (6, 5400, 2400, 150000, 29000), "scale": 1.6},
-    "modernize-planner": {"tokens": (6, 5223, 4579, 212487, 48722), "scale": 1.5},
-    "modernize-build-upgrader": {"tokens": (9, 6160, 2188, 274549, 37746), "scale": 1.1},
-    "modernize-code-fixer": {"tokens": (14, 6239, 4827, 481290, 26872), "scale": 1.2},
-    "modernize-conformance-reviewer": {"tokens": (6, 5554, 4752, 195598, 45907), "scale": 1.3},
-    "modernize-standards-reviewer": {"tokens": (6, 5554, 4752, 195598, 45907), "scale": 1.2},
+    "modernize-compat-analyst": {"tokens": (16, 438406, 7530, 371440, 0), "detection": (2, 48382, 273, 21883, 0)},
+    "modernize-dependency-analyst": {"tokens": (11, 5079, 18366, 660299, 98159), "detection": (2, 13581, 821, 19157, 26637)},
+    "modernize-planner": {"tokens": (12, 6339, 9287, 489874, 62665), "detection": (2, 17976, 174, 18909, 43488)},
+    "modernize-build-upgrader": {"tokens": (11, 6351, 6538, 406419, 46367), "detection": (2, 18287, 542, 18904, 39448)},
+    "modernize-code-fixer": {"tokens": (13, 6526, 4062, 475152, 44352), "detection": (2, 18456, 176, 18909, 41544)},
+    "modernize-conformance-reviewer": {"tokens": (10, 5439, 6032, 389220, 53754), "detection": (2, 17271, 155, 26875, 27472)},
+    "modernize-standards-reviewer": {"tokens": (11, 6412, 5126, 408027, 51125), "detection": (3, 17107, 414, 63283, 27600)},
 }
-# Every gh-aw agent run is followed by a threat-detection job that reviews its output.
-DETECTION = {"model": "claude-haiku-5.5", "tokens": (2, 17500, 450, 22000, 30000)}
-# Low and high multipliers around the point estimate. The code fixer loops, so its range is wider.
-BAND = {"default": (0.6, 2.0), "modernize-code-fixer": (0.6, 3.0)}
-
+# Low and high multipliers around the measured point. The code fixer loops, so its range is wider.
+BAND = {"default": (0.7, 1.8), "modernize-code-fixer": (0.7, 3.0)}
 STAGES = {
     "assessment": ["modernize-compat-analyst", "modernize-dependency-analyst"],
     "plan": ["modernize-planner"],
@@ -83,6 +80,9 @@ def credits(model, inp, out, cache_read, cache_write):
     if not price:
         return None
     p_in, p_cached, p_write, p_out = price
+    if model.startswith("gpt-"):
+        # OpenAI reports cached tokens inside input_tokens; bill them once, at the cached rate.
+        inp = max(0, inp - cache_read)
     # Models without a cache-write price bill those tokens as normal input.
     write_price = p_write if p_write is not None else p_in
     usd = (inp * p_in + cache_read * p_cached + cache_write * write_price + out * p_out) / 1_000_000
@@ -94,15 +94,13 @@ def estimate_rows(stages, workflows):
     for stage in stages:
         for name in STAGES[stage]:
             model = workflow_model(name, workflows) or "unknown"
-            req, inp, out, cr, cw = PROFILES[name]["tokens"]
-            s = PROFILES[name]["scale"]
-            tokens = [round(x * s) for x in (inp, out, cr, cw)]
+            req, *tokens = PROFILES[name]["tokens"]
             point = credits(model, *tokens)
             low, high = BAND.get(name, BAND["default"])
-            d_req, *d_tokens = DETECTION["tokens"]
-            detect = credits(DETECTION["model"], *d_tokens)
+            d_req, *d_tokens = PROFILES[name]["detection"]
+            detect = credits(model, *d_tokens)
             rows.append({
-                "stage": stage, "agent": name, "model": model, "requests": round(req * s),
+                "stage": stage, "agent": name, "model": model, "requests": req,
                 "input": tokens[0], "output": tokens[1], "cache_read": tokens[2], "cache_write": tokens[3],
                 "credits": point, "low": point * low if point is not None else None, "high": point * high if point is not None else None,
                 "detection_credits": detect,
@@ -129,15 +127,15 @@ def estimate_markdown(rows):
         lines.append(f"| {STAGE_TITLES[r['stage']]} | `{r['agent']}` | `{r['model']}` | ~{r['requests']} | {fmt_tokens(r['input'])} | {fmt_tokens(r['output'])} | "
                      f"{fmt_tokens(r['cache_read'])} | {fmt_tokens(r['cache_write'])} | {fmt_credits(r['credits'])} ({fmt_credits(r['low'])} to {fmt_credits(r['high'])}) | "
                      f"{fmt_usd(r['credits'])} ({fmt_usd(r['low'])} to {fmt_usd(r['high'])}) |")
-    detect = sum(r["detection_credits"] for r in rows)
-    lines.append(f"| All | threat detection after each agent ({len(rows)} runs) | `{DETECTION['model']}` | ~{2 * len(rows)} | | | | | {fmt_credits(detect)} | {fmt_usd(detect)} |")
+    detect = sum(r["detection_credits"] or 0 for r in rows)
+    lines.append(f"| All | threat detection after each agent ({len(rows)} {"run" if len(rows) == 1 else "runs"}, same model as the agent) | | ~{2 * len(rows)} | | | | | {fmt_credits(detect)} | {fmt_usd(detect)} |")
     known = [r for r in rows if r["credits"] is not None]
     total = sum(r["credits"] for r in known) + detect
     low = sum(r["low"] for r in known) + detect
     high = sum(r["high"] for r in known) + detect
     lines.append(f"| **Total** | | | | | | | | **{fmt_credits(total)} ({fmt_credits(low)} to {fmt_credits(high)})** | **{fmt_usd(total)} ({fmt_usd(low)} to {fmt_usd(high)})** |")
     unknown = [r["agent"] for r in rows if r["credits"] is None]
-    lines += ["", f"Estimate from token counts measured on a real run of this pipeline, scaled for this version's prompts. "
+    lines += ["", f"Estimate from token counts measured on a full real run of this pipeline (2026-10-19). "
               f"Prices: [GitHub Copilot models and pricing]({PRICING_SOURCE}), read {PRICING_DATE}. 1 AI credit = $0.01. "
               "Credits count against the Copilot plan of the `COPILOT_GITHUB_TOKEN` owner; usage beyond the plan's included credits is billed. "
               "Deterministic jobs (tests, Maven, OpenRewrite, OSV) use GitHub Actions minutes and no AI credits."]
