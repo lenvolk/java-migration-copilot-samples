@@ -122,7 +122,10 @@ def mermaid_pie(title, counts):
     data = [(k, v) for k, v in counts.items() if v]
     if not data:
         return []
-    return ["```mermaid", f"pie showData title {title}"] + [f'    "{k}" : {v}' for k, v in data] + ["```", ""]
+    # Mermaid labels slices with percentages and, with showData, the legend with counts. Name the total.
+    title = f"{title}, {sum(v for _, v in data)} total"
+    return ["```mermaid", f"pie showData title {title}"] + [f'    "{k}" : {v}' for k, v in data] + ["```", "",
+            "_Slices show the share of the total; the legend shows the count._", ""]
 
 
 def render(facts, findings, structured, sections, issue, run_url, estimate_md, estimate_total, actual_md, full=True, summaries=True):

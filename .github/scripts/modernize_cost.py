@@ -192,7 +192,7 @@ def actual_markdown(rows):
     if detection:
         pie.append(("threat detection", sum(r["credits"] for r in detection)))
     if len(pie) > 1:
-        lines += ["", "```mermaid", "pie showData title AI credits by agent"] + [f'    "{name}" : {value:.1f}' for name, value in pie] + ["```"]
+        lines += ["", "```mermaid", f"pie showData title AI credits by agent, {total:.1f} total"] + [f'    "{name}" : {value:.1f}' for name, value in pie] + ["```", "", "_Slices show the share of the total; the legend shows the credits._"]
     lines += ["", "Recorded by gh-aw for every model request (`token_usage.jsonl` in the `*-usage` artifacts of this run). 1 AI credit = $0.01."]
     return "\n".join(lines) + "\n", total
 
