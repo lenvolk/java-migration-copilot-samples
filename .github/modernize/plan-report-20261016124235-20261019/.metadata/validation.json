@@ -1,0 +1,158 @@
+{
+  "planStatus": "blocked-draft",
+  "executionReady": false,
+  "assessment": {
+    "identifier": "report-20261016124235",
+    "path": ".github\\modernize\\assessment\\reports\\report-20261016124235\\report.json",
+    "reportedStatus": "cancelled",
+    "broadAssessmentRerun": false,
+    "verification": "Read original rule IDs, titles, incident IDs and locations; checked current POMs, Ant build, relevant Java symbols and redacted/classified configuration keys. No configuration secret values were printed or persisted."
+  },
+  "scope": [
+    "asset-manager (web and worker)",
+    "mi-sql-public-demo",
+    "rabbitmq-sender",
+    "todo-web-api-use-oracle-db",
+    "jakarta-ee\\student-web-app",
+    "ContosoUniversity (security/CVE only; original report evidence)",
+    "Malshinon (security/CVE only; original report evidence)"
+  ],
+  "tasks": {
+    "total": 13,
+    "byType": {
+      "upgrade": 1,
+      "setupBaseline": 1,
+      "transform": 9,
+      "security": 1,
+      "integrationTest": 1,
+      "infrastructure": 0,
+      "deployment": 0,
+      "containerization": 0
+    }
+  },
+  "checks": [
+    {
+      "check": "JSON syntax",
+      "command": "Test-Json -LiteralPath '.github\\modernize\\plan-report-20261016124235-20261019\\.metadata\\tasks.json'",
+      "result": "passed",
+      "returned": true
+    },
+    {
+      "check": "Unmodified supplied tasks schema",
+      "command": "Test-Json -LiteralPath '.github\\modernize\\plan-report-20261016124235-20261019\\.metadata\\tasks.json' -SchemaFile 'C:\\Users\\levolkov\\AppData\\Roaming\\Code\\agentPlugins\\vscode-synced-customization-agent-host-copilotcli-690973889\\1963739802\\skills\\create-modernization-plan\\tasks-schema.json'",
+      "result": "failed",
+      "returned": false,
+      "schemaSha256": "A54C179827D98AD5CE07F6FE6491C065929E4B1984E871DFDEA49EB695EA8E7A",
+      "validator": "PowerShell 7.6.7 Test-Json / JsonSchema.Net",
+      "exactDiagnostic": {
+        "instanceLocation": "/tasks/0",
+        "keyword": "oneOf",
+        "message": "Expected 1 matching subschema but found 0"
+      },
+      "details": "Every nonempty task fails the schema's allOf composition: taskBase rejects task-specific properties, and each task-specific branch rejects required base properties under additionalProperties:false. Example: upgradeTask requires successCriteria, which taskBase forbids; upgradeTask's own branch forbids mandatory id/description/requirements. Source schema unchanged. This is a blocking contract defect, not a passing validation."
+    },
+    {
+      "check": "Supplemental intended-field schema validation",
+      "command": "Test-Json -Json $json -Schema $compat",
+      "preparation": "Read the supplied schema into an in-memory hashtable. For each task definition containing allOf, replace that definition in memory with one object containing the union of taskBase and branch properties and required arrays, retaining additionalProperties:false and all task-specific property constraints. Serialize as $compat. No schema file was edited or replaced.",
+      "result": "passed",
+      "returned": true,
+      "limitation": "This confirms intended field shapes only. It does NOT satisfy the user's requirement to validate against the unmodified supplied schema."
+    },
+    {
+      "check": "Task identity, dependency graph and execution-result fields",
+      "command": "python -",
+      "method": "Inline read-only assertions: unique IDs, existing dependency references, acyclic graph, first task upgrade, every transform/upgrade chained to the previous code task, dependency-free root snapshot baseline, security waits on all code tasks, integration waits on baseline/all code/security, no infrastructure/deployment/containerization, no status/taskSummary/successCriteriaStatus/cveReport fields.",
+      "result": "passed"
+    },
+    {
+      "check": "Assessment incident coverage and exclusions",
+      "command": "python -",
+      "method": "Inline read-only comparison of every original selected-rule incidentId with plan.md plus tasks.json; only unselected spring-boot-to-azure-restricted-config-01000 is outside requested coverage. Explicitly account for already-MI SQL, duplicate Java SQL incidents, unlocated DB incidents, internal compose localhost healthcheck and placeholder AWS credentials.",
+      "result": "passed",
+      "accountedSelectedIncidents": 47,
+      "unmappedSelectedIncidentIds": []
+    },
+    {
+      "check": "Selected solution kbIds",
+      "result": "passed",
+      "applicableKbIdsInTasks": [
+        "mi-postgresql",
+        "mi-mysql",
+        "plaintext-credential-to-azure-keyvault",
+        "amqp-rabbitmq-servicebus",
+        "s3-to-azure-blob-storage",
+        "oracle-to-postgresql",
+        "log-to-console",
+        "javax.email-send-to-azure-communication-service-email",
+        "java-version-upgrade",
+        "ant-project-to-maven-project"
+      ],
+      "excludedSolutionPreservedInPlan": "Secure Azure SQL Database with Managed Identity [kbId: mi-azure-sql]",
+      "nonKbSelectionsCovered": [
+        "Migrate from Open Liberty Database to Azure Database Services",
+        "Migrate from AWS Region Configuration to Azure Region Configuration",
+        "Remove Hardcoded Credentials",
+        "Migrate the Local Resource to Azure"
+      ]
+    },
+    {
+      "check": "All requested future CWE coverage",
+      "command": "python -",
+      "method": "Inline exact-set assertion against CWE IDs in security task requirements; these are future requirements, not findings.",
+      "result": "passed",
+      "count": 20,
+      "ids": [
+        "CWE-477", "CWE-606", "CWE-681", "CWE-682", "CWE-772",
+        "CWE-775", "CWE-789", "CWE-835", "CWE-662", "CWE-820",
+        "CWE-259", "CWE-732", "CWE-778", "CWE-798", "CWE-22",
+        "CWE-23", "CWE-36", "CWE-434", "CWE-89", "CWE-99"
+      ]
+    },
+    {
+      "check": "CVE acceptance criteria review",
+      "result": "passed",
+      "method": "Read-only plan review: five Java migration apps plus report-referenced ContosoUniversity/Malshinon security-only scopes, appropriate Java/.NET tooling, direct/transitive dependencies/plugins/bundled JARs, minimum patched versions, major-change risk and approval, final rescan, tool/advisory timestamp/coverage/dispositions, no unresolved confirmed applicable CVEs, build/test regression checks and scan gaps as blockers. The original CVE-2025-59250 entry is retained as an unverified lead with no original file evidence. No scanner was run and no current CVE finding or clean result is asserted."
+    },
+    {
+      "check": "User-requested sanitized assessment review",
+      "command": "python -",
+      "method": "Inline read-only comparison of assessment-report.md against the original report.json: all 18 rule IDs/titles, all 49 incident IDs/locations/lines, all 21 security entry IDs/titles and all evidence file paths are preserved; source status cancelled retained. Only titles, identifiers, classifications, aggregate numbers and evidence locations were exported; secret/configuration values, source excerpts and free-text descriptions/explanations were omitted.",
+      "result": "passed",
+      "markdownPreview": "appmod-preview-markdown returned: Markdown preview opened.",
+      "originalReportChangedOrRerun": false
+    },
+    {
+      "check": "Markdown preview",
+      "tool": "appmod-preview-markdown",
+      "path": "C:\\Temp\\GHDemo\\JavaModernization\\java-migration-copilot-samples\\.github\\modernize\\plan-report-20261016124235-20261019\\plan.md",
+      "result": "passed",
+      "toolResult": "Markdown preview opened."
+    },
+    {
+      "check": "Application builds/tests/security scans/cloud validation",
+      "result": "not-run",
+      "reason": "Planning-only request. No baseline generation, application builds/tests, CVE/CWE scans, live service calls, migrations or provisioning."
+    },
+    {
+      "check": "Worktree protection",
+      "command": "git --no-pager status --short --untracked-files=all",
+      "result": "passed",
+      "before": "Clean.",
+      "after": "Three untracked files under this plan folder and the explicitly requested sanitized assessment-report.md saved beside the existing report. The review report is ignored by .github\\modernize\\assessment\\.gitignore line 2 and was not force-added. git diff --exit-code and git diff --cached --exit-code both passed; no application or existing assessment files changed."
+    }
+  ],
+  "blockers": [
+    "ask_user is unavailable; Java targets for four reported application roots require explicit approval. No latest-LTS number or framework upgrade is inferred.",
+    "Oracle-to-PostgreSQL hosted product/version/authentication requires approval.",
+    "Open Liberty Azure MySQL authentication strategy requires approval; the Spring Boot-only migration-mi-mysql skill is not fully matched.",
+    "Supplied tasks-schema.json composition defect prevents conformance for any nonempty task list; schema owner must repair it.",
+    "Plan review/default confirmation is required before execution. Parent/user must choose Review the plan or resolve decisions; no migration executor was invoked."
+  ],
+  "filesChanged": [
+    ".github\\modernize\\plan-report-20261016124235-20261019\\plan.md",
+    ".github\\modernize\\plan-report-20261016124235-20261019\\.metadata\\tasks.json",
+    ".github\\modernize\\plan-report-20261016124235-20261019\\.metadata\\validation.json",
+    ".github\\modernize\\assessment\\reports\\report-20261016124235\\assessment-report.md"
+  ]
+}

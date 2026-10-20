@@ -1,0 +1,212 @@
+{
+  "$schema": "C:\\Users\\levolkov\\AppData\\Roaming\\Code\\agentPlugins\\vscode-synced-customization-agent-host-copilotcli-690973889\\1963739802\\skills\\create-modernization-plan\\tasks-schema.json",
+  "description": "BLOCKED DRAFT, planning only: selected findings from report-20261016124235, verified against five independent Java migration applications, plus report-referenced ContosoUniversity and Malshinon scopes for future security/CVE verification only. Do not execute: explicit JDK targets, Oracle PostgreSQL product/authentication and Liberty MySQL authentication need approval; supplied schema has an allOf/additionalProperties composition defect. No runtime/framework target was inferred. Java baseline/integration use the questionnaire's no-infrastructure mock default. See plan.md and validation.json. No infrastructure, deployment or containerization is authorized.",
+  "metadata": {
+    "planName": "Selected assessment modernization — blocked planning draft",
+    "projectName": "java-migration-copilot-samples (five Java migrations; seven security scopes)",
+    "language": "java",
+    "createdAt": "2026-10-19T17:07:44.010Z",
+    "version": "1.0"
+  },
+  "tasks": [
+    {
+      "type": "upgrade",
+      "id": "001-upgrade-approved-java-target",
+      "description": "BLOCKED: upgrade only the approved Java runtime/compiler targets. Addresses issues: Java Version is not the latest LTS (azure-java-version-02000) in asset-manager, mi-sql-public-demo, rabbitmq-sender and todo-web-api-use-oracle-db.",
+      "reason": "The selected Java finding is present, but 'latest LTS' does not specify the user's target; no framework upgrade was requested.",
+      "requirements": "EXECUTION GATE: planning only; do not execute this or dependent code tasks before review, explicit target decisions and schema repair. Original selection: Category: Java Version Upgrade; Issues: Java Version is not the latest LTS; Solutions: Upgrade Java Version [kbId: java-version-upgrade]. Scope: asset-manager\\pom.xml:19 (Java 8, inherited by web/worker); mi-sql-public-demo\\pom.xml:15 (Java 17); rabbitmq-sender\\pom.xml:17 (Java 17); todo-web-api-use-oracle-db\\pom.xml:18 (Java 17). Report incidents: 5ed913ff-edd8-4107-9081-e909e4e50c9d; dc88cf5a-c03f-4005-9885-67530e6cf6f3; 74d6012b-01b4-4fe1-9784-5c5845343bdf; 3d85db7c-7300-4f78-8e0d-e2214563b45f; 3d695157-8432-43a2-b111-6460d9ed3286. Deduplicate the two SQL POM incidents. Obtain an explicit approved Java version per root from guideline options 11/17/21/25 without downgrading Java 17 apps. Target is intentionally UNRESOLVED; do not substitute 21 or 25. Check actual framework/tool compatibility and request separate authorization for any required Spring Boot, Spring Framework or Jakarta EE changes; do not apply those implicitly. Preserve the five applications' separate build boundaries; student-web-app's Java 11 Ant scope is not included in this reported upgrade. No fully matching project upgrade skill exists while target/framework decisions remain open. Future acceptance: compile each affected Maven root and run its existing impacted tests with the approved JDK; record exact commands and results separately per app. No builds/tests have run during planning.",
+      "dependencies": [],
+      "successCriteria": {
+        "passBuild": "true",
+        "generateNewUnitTests": "false",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "setupBaseline",
+      "id": "002-setupBaseline",
+      "description": "After approval, capture a frozen pre-migration behavior baseline for the five Java applications using mocked external dependencies.",
+      "reason": "Required because the unavailable-questionnaire fallback selects mock integration testing; do not generate the baseline during planning.",
+      "requirements": "EXECUTION GATE: review and target decisions first; this task is proposed, not authorized to run. User-selected assessment is report-20261016124235; this supporting validation task introduces no new migration finding. Scope allowlist: asset-manager (web/worker together), mi-sql-public-demo, rabbitmq-sender, todo-web-api-use-oracle-db and jakarta-ee\\student-web-app. Snapshot the repository root to preserve shared files, but include only these Java application folders and needed root build context; exclude .git, .github\\modernize reports/plans, .NET samples, generated output and credentials from baseline bundles. The snapshot must represent the original revision before code transforms; use an immutable pre-change revision/snapshot rather than reading concurrently modified live files. No dependencies: run independently of the code chain on the frozen snapshot. Freeze test-cases, sanitized testdata and an infra-decision-table covering PostgreSQL, MySQL/JNDI, SQL Server, Oracle, RabbitMQ, Service Bus, S3/Blob, SMTP/ACS Email and Key Vault as applicable per app. Use Mock mode throughout; no real cloud access or container startup/provisioning. Preserve AM upload/list/download/thumbnail/message/metadata behavior; ST servlet/Spring student CRUD and email semantics; TD CRUD and Oracle-specific behaviors to be preserved; SQ connection configuration intent; RM existing Service Bus producer behavior. Record current expected outcomes and pre-existing failures. Do not expand testing to unrelated code. Never capture real secret values in snapshots or fixtures. Mock behavior is not evidence of real service or managed-identity access.",
+      "snapshotFolder": ".",
+      "dependencies": []
+    },
+    {
+      "type": "transform",
+      "id": "003-transform-ant-to-maven",
+      "description": "Migrate the Student Web App build from Ant to Maven. Addresses issues: Ant build tool found (ant-build-tool-00001).",
+      "requirements": "EXECUTION GATE: do not run before plan review, explicit target decisions and schema repair. Original selection: Category: Build Tool (Ant); Issues: Ant build tool found; Solutions: Migrate from Ant Project to Maven Project [kbId: ant-project-to-maven-project]. Scope: jakarta-ee\\student-web-app\\build.xml, build.properties, resources, src and WebContent; report incident de9ca8aa-c287-4fbf-9905-4c889b62af8e. Preserve Java 11 source/target, WAR structure, resources, servlet/JSP and Spring MVC behavior and Open Liberty deployment contracts. Account for bundled JAR dependencies and external compile-library assumptions; do not invent versions or silently perform a Jakarta/Spring upgrade. Do not add deployment or new containerization. Future acceptance: Maven reproduces the existing WAR contents/classpath requirements and the impacted student flows pass isolated tests. Keep the old Ant inputs available until parity is established. The exact pattern/kbId is ant-project-to-maven-project; the assigned migration-ant-project-to-maven-project name is an actual builtin skill definition.",
+      "dependencies": ["001-upgrade-approved-java-target"],
+      "skills": [
+        {"name": "migration-ant-project-to-maven-project", "location": "builtin"}
+      ],
+      "successCriteria": {
+        "passBuild": "true",
+        "generateNewUnitTests": "false",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "transform",
+      "id": "004-transform-postgresql-managed-identity",
+      "description": "Secure both Asset Manager modules' PostgreSQL connectivity with managed identity. Addresses issues: PostgreSQL database found (azure-database-postgresql-02000), Local JDBC Calls (localhost-jdbc-00002).",
+      "requirements": "EXECUTION GATE: review, target decisions and schema repair required before execution. Original selection: Category: Database Migration (PostgreSQL); Issues: PostgreSQL database found; Solutions: Secure Azure Database for PostgreSQL with Managed Identity [kbId: mi-postgresql]. Shared localhost selection: Category: Local Resource Access (Localhost); Issues: Local JDBC Calls; Localhost Usage; Solutions: Migrate the Local Resource to Azure. Scope: asset-manager\\web and asset-manager\\worker POMs, JPA repositories/models and datasource settings at web\\src\\main\\resources\\application.properties:20-24 and worker\\src\\main\\resources\\application.properties:17-21. Database incidents 1f99c6c1-8d5d-4313-afa0-4e764751a1af and 9f920b56-01d4-4526-8fe5-84d83753a8d9; localhost incidents 7fbd82aa-3e77-410b-83bd-becceed8873c and a9d3dde2-70a8-442e-ad34-bf699e9df60c. Unlocated PostgreSQL incident 5f2216ff-6919-4443-abbe-2bb5a837ffbf does not create extra scope. Target Azure Database for PostgreSQL and passwordless MI for both modules; remove obsolete production localhost/password settings rather than moving retired DB passwords to KV. Preserve schema and image metadata behavior. Externalize target endpoint/identity placeholders; do not provision resources, grant roles or move data. Environment owners must supply real endpoint/identity and database grants outside this plan. Coordinate shared credential coverage with task 011. Future acceptance: both apps build; mocked connection configuration/token failure and metadata repository behaviors pass; no production PostgreSQL password fallback or localhost default remains. Real database authentication is unverified until separately authorized tests are available.",
+      "dependencies": ["003-transform-ant-to-maven"],
+      "skills": [
+        {"name": "migration-mi-postgresql", "location": "builtin"}
+      ],
+      "successCriteria": {
+        "passBuild": "true",
+        "generateNewUnitTests": "false",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "transform",
+      "id": "005-transform-liberty-mysql",
+      "description": "Migrate the Student Web App's existing Open Liberty/JNDI MySQL connection to Azure Database for MySQL. Addresses issues: MySQL database found (azure-database-mysql-01000), Detect application-level data source references (openliberty-database-00004).",
+      "requirements": "EXECUTION GATE: review, schema repair and explicit approval of the Open Liberty Azure MySQL authentication strategy are required. Original selections: Category: Database Migration (MySQL); Issues: MySQL database found; Solutions: Migrate to Azure Database for MySQL [kbId: mi-mysql]. Category: Openliberty Migration (Openliberty Database); Issues: Detect application-level data source references; Solutions: Migrate from Open Liberty Database to Azure Database Services. Scope: jakarta-ee\\student-web-app\\liberty_config\\server-docker.xml:31-41 and server-docker.env; docker-compose.yml; WebContent\\WEB-INF\\web.xml:64-69; resources\\sql-map-config.xml:9-10; MyBatisUtil and student persistence mappings. Incidents: df97fdb8-cce4-4681-b9c9-0c860b0bb0f0; d367c54b-c3ce-498f-b685-d7e2e81d3a58. Unlocated incident 29dd4fe3-fa01-41be-86ca-ce208563e69b does not imply another project. One task owns both categories because jdbc/StudentDB is the same MySQL dependency. Retain the JNDI name/lookup contract and student schema/CRUD behavior; externalize an Azure MySQL endpoint, secure transport and the approved authentication configuration without storing secrets in code/config. The supported migration-mi-mysql builtin targets Spring Boot and is NOT a full source-framework match; assign no skill and use the selected solution directly. Do not convert Liberty to Spring Boot or select an Azure MySQL authentication mode implicitly. If approved credentials remain necessary, task 011 owns KV retrieval/removal of plaintext. No provisioning, DB export/import or production cutover. The compose localhost healthcheck is an internal local-dev probe (ca23fa56-4d96-4e6a-b512-74c54af5798a), not an Azure migration endpoint; preserve it without treating it as another resource. Future acceptance: Maven WAR builds, mocked JNDI lookup and student CRUD use the externalized Azure target configuration, and no production endpoint defaults to localhost. Real Azure MySQL authentication is not proven by mocks.",
+      "dependencies": ["004-transform-postgresql-managed-identity"],
+      "successCriteria": {
+        "passBuild": "true",
+        "generateNewUnitTests": "false",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "transform",
+      "id": "006-transform-oracle-to-postgresql",
+      "description": "Migrate the Todo Web API database layer from Oracle to approved PostgreSQL. Addresses issues: Oracle database found (azure-database-microsoft-oracle-07000), Localhost Usage (localhost-00004).",
+      "requirements": "EXECUTION GATE: review, schema repair and explicit PostgreSQL target product/hosting/version and authentication approval are required; no product/version has been invented. Original selection: Category: Database Migration (Oracle); Issues: Oracle database found; Solutions: Migrate from Oracle DB to PostgreSQL [kbId: oracle-to-postgresql]. Shared localhost selection: Category: Local Resource Access (Localhost); Issues: Local JDBC Calls; Localhost Usage; Solutions: Migrate the Local Resource to Azure. Scope: todo-web-api-use-oracle-db\\pom.xml; src\\main\\resources\\application.yaml:3-8, schema.sql and data.sql; model\\TodoItem.java, repository\\TodoRepository.java, service\\TodoService.java and util\\OracleSqlDemonstrator.java under the app's Java package. Oracle incidents acb278b0-709f-41b1-aab6-cd472b4d7312 and 5049e481-428b-4cb0-9457-747e45bbfa7a; localhost incident 16285838-06de-4bd5-903b-11dacfcf6f19. Address Oracle driver/dialect/configuration and actual Oracle-dependent SQL/data types including VARCHAR2, NUMBER, SYSDATE and ROWNUM, preserving CRUD, IDs, ordering/pagination, dates, booleans and demo SQL behavior. Replace the active localhost Oracle endpoint with the approved PostgreSQL endpoint through external configuration; credential migration is owned by task 011 where still needed. The solution establishes PostgreSQL, not a specific hosted offering or server version; choose neither silently. No implicit framework/Jakarta upgrade, provisioning, live database schema application, data export/import or cutover. Future acceptance: app builds and focused mocked regression tests preserve SQL contract/behavior for approved PostgreSQL, with no active Oracle driver/dialect or production localhost dependency. SQL engine parity remains a real-database validation limitation under Mock mode.",
+      "dependencies": ["005-transform-liberty-mysql"],
+      "skills": [
+        {"name": "migration-oracle-to-postgresql", "location": "builtin"}
+      ],
+      "successCriteria": {
+        "passBuild": "true",
+        "generateNewUnitTests": "false",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "transform",
+      "id": "007-transform-rabbitmq-to-servicebus",
+      "description": "Migrate Asset Manager AMQP producers and consumers to Azure Service Bus. Addresses issues: RabbitMQ connection string, username or password found in configuration file (azure-message-queue-config-rabbitmq-01000), Localhost Usage (localhost-00004).",
+      "requirements": "EXECUTION GATE: review, explicit target decisions and schema repair required. Original selection: Category: Messaging Service Migration (Spring AMQP RabbitMQ); Issues: RabbitMQ connection string, username or password found in configuration file; Solutions: Migrate from RabbitMQ(AMQP) to Azure Service Bus [kbId: amqp-rabbitmq-servicebus]. Shared localhost selection: Migrate the Local Resource to Azure. Scope: asset-manager\\web and worker POMs, RabbitConfig classes, web AwsS3Service/LocalFileStorageService/BackupMessageProcessor, worker AbstractFileProcessingService, ImageProcessingMessage contracts and rabbitmq config keys. RabbitMQ incidents 63c885c0-aefb-4e66-8f73-28d694bc7ab7; ea0eb81f-ebfb-4b84-945b-cc416ab7385f; 89231a75-078f-4a68-aef4-60e1de96ece9; ce487038-a52b-42c0-aaa2-2aba13084ecb; 65e6a3a3-f535-4f0a-8ddc-362ebff9841b; d57994f3-7723-4b58-a2f8-03704c4d130c. Localhost incidents a152fbfb-fb12-4b60-a23f-273c222f4c5c and b1dae0a0-9822-4f28-a899-3f347f73f2fb. Preserve processing and backup fan-out, queue/subscription intent, payload compatibility, acknowledgements, retries and failure handling. Target Service Bus with MI as the planning authentication default; externalize namespace/entity/identity settings. Remove retired broker localhost/password settings; task 011 verifies shared credential coverage rather than copying retired broker passwords to KV. No resource creation or live message transfer. rabbitmq-sender already uses ServiceBusTemplate/configuration and is NOT an AMQP migration target. Future acceptance: both AM modules build and mocked producer/consumer tests prove routing, payload and failure semantics without the RabbitMQ dependency. Mock tests do not prove real Service Bus delivery.",
+      "dependencies": ["006-transform-oracle-to-postgresql"],
+      "skills": [
+        {"name": "migration-amqp-rabbitmq-servicebus", "location": "builtin"}
+      ],
+      "successCriteria": {
+        "passBuild": "true",
+        "generateNewUnitTests": "false",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "transform",
+      "id": "008-transform-s3-region-to-blob",
+      "description": "Migrate both Asset Manager modules' S3 access and AWS-only region configuration to Azure Blob Storage and external Azure settings. Addresses issues: AWS S3 usage found (azure-aws-config-s3-03000), AWS region configuration (azure-aws-config-region-02000).",
+      "requirements": "EXECUTION GATE: review, explicit target decisions and schema repair required. Original selections: Category: Storage Migration (AWS S3); Issues: AWS S3 usage found; Solutions: Migrate from AWS S3 to Azure Blob Storage [kbId: s3-to-azure-blob-storage]. Category: Region Configuration (AWS Region Configuration); Issues: AWS region configuration; Solutions: Migrate from AWS Region Configuration to Azure Region Configuration. Scope: asset-manager\\web and worker AWS dependencies; AwsS3Config classes; web AwsS3Service/S3Controller/S3StorageItem and storage/message contracts; worker S3FileProcessingService/StorageUtil; corresponding application.properties and S3FileProcessingServiceTest. S3 incidents 45308a4b-e455-4a3e-b3a5-e11042fbf6c7 and 28b573b8-4f66-404c-9979-c96a0637b793; region incidents bc37d285-36ee-47f3-b903-c2b6183b7477, d4a79de9-e2ba-4464-8b23-5f1d30e8ffe7, 83fa6fcc-b96f-4d19-b4c6-e6e0ee73fa12 and 93021f33-6d3b-42ad-a974-656f7dc68073. Preserve object naming, uploads/list/download, thumbnails, metadata, error handling and the message identifiers agreed in task 007. Remove AWS Region.of/aws.region and obsolete static AWS key plumbing; externalize Azure endpoint/container and any actually needed location metadata. Do not mechanically pass an Azure region into an AWS client or invent an Azure region/resource. No standalone region skill matches; handle that selected solution in this same storage goal. MI is the Blob planning authentication default. Task 011 owns residual credential checks; retired AWS keys must be removed, not stored in KV. No account/container creation or live object copy. Future acceptance: both modules build and mocked Blob operations preserve storage/message semantics; no active S3 SDK or AWS-region requirement remains in migrated paths.",
+      "dependencies": ["007-transform-rabbitmq-to-servicebus"],
+      "skills": [
+        {"name": "migration-s3-to-azure-blob-storage", "location": "builtin"}
+      ],
+      "successCriteria": {
+        "passBuild": "true",
+        "generateNewUnitTests": "false",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "transform",
+      "id": "009-transform-javamail-to-acs-email",
+      "description": "Migrate student notifications from JavaMail/localhost SMTP to Azure Communication Services Email. Addresses issues: Java Mail API (mail-00000), Localhost Usage (localhost-00004).",
+      "requirements": "EXECUTION GATE: review, explicit target decisions and schema repair required. Original selection: Category: Remote Communication (JavaMail); Issues: Java Mail API; Solutions: Migrate to Azure Communication Service [kbId: javax.email-send-to-azure-communication-service-email]. Shared localhost selection: Migrate the Local Resource to Azure. Scope: jakarta-ee\\student-web-app\\src\\org\\sample\\azure\\student\\coreft\\AddStudentServlet.java:16-20,99-104; liberty_config\\server-docker.xml:22-27; WebContent\\WEB-INF\\web.xml:71-76 and the new Maven build. Incidents 7011992e-555f-465f-9848-3ea3c3f78bac and dcf8ac08-d5db-4612-bee2-4b9d972a740d. JavaMail use is verified by javax.mail imports, mail/StudentMailSession lookup and Transport.send, not just a configured feature. Preserve recipients, student-notification content and business error behavior; replace active localhost SMTP/mailSession dependency with external ACS Email endpoint/sender settings. Use MI as the planning default where supported; do not invent verified domains, senders, resource IDs or credentials. Remove retired mail credentials/JNDI references after confirming no remaining consumers; shared secret cleanup is task 011. No ACS resource/domain provisioning or actual email sending. Future acceptance: WAR builds, mocked success/failure mail contracts pass and student CRUD still behaves as baseline; real email delivery/domain/identity authorization remains unverified.",
+      "dependencies": ["008-transform-s3-region-to-blob"],
+      "skills": [
+        {"name": "migration-javax.email-send-to-azure-communication-service-email", "location": "builtin"}
+      ],
+      "successCriteria": {
+        "passBuild": "true",
+        "generateNewUnitTests": "false",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "transform",
+      "id": "010-transform-file-to-console-logging",
+      "description": "Remove Student Web App file-based logging while retaining observable console events. Addresses issues: Avoid File System Logging in Configuration (logging-0002).",
+      "requirements": "EXECUTION GATE: review, explicit target decisions and schema repair required. Original selection: Category: Logging Management; Issues: Avoid File System Logging in Configuration; Solutions: Migrate to Console Logging [kbId: log-to-console]. Scope: jakarta-ee\\student-web-app\\resources\\log4j.properties:10-15 and the corresponding logging configuration packaged in the WAR. Incidents e2efb54a-75db-4051-8c4f-6227d36b1d6f and b325b9b5-a351-4a0c-82cd-5e3e22a5a056. RollingFileAppender and rolling.File declarations remain even though a console appender also exists; remove file-only declarations and active references without dropping security-relevant operational events or exposing secrets. Do not add Azure monitoring resources, agents or containerization. Security task 012 owns any confirmed dependency CVE remediation and CWE-778 review; do not independently choose unrelated logging-library upgrades here. Future acceptance: WAR builds, effective logging configuration uses console only, no migrated appender creates files and focused tests demonstrate required events and redaction.",
+      "dependencies": ["009-transform-javamail-to-acs-email"],
+      "skills": [
+        {"name": "migration-log-to-console", "location": "builtin"}
+      ],
+      "successCriteria": {
+        "passBuild": "true",
+        "generateNewUnitTests": "false",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "transform",
+      "id": "011-transform-residual-credentials-to-keyvault",
+      "description": "Remove hardcoded/default credentials and move only still-required secrets to Azure Key Vault. Addresses issues: Password found in configuration file (azure-password-01000); CRA: Default or well-known password detected (cra-hardcoded-credential-default-pwd-04000). Disposes of original CRA: Hard-coded credentials in configuration files (cra-hardcoded-credential-config-03000) AWS findings as placeholders, not verified exposed secrets; task 008 removes obsolete AWS settings.",
+      "reason": "Current AM AWS access/secret key values classify as placeholders, not demonstrated real credentials; do not rotate them or populate KV from them. AM/TD database passwords, AM broker passwords and ST mail/local-development password settings have literal/default values, so residual credential remediation remains applicable. Server datasource passwords already use environment references; preserve that externalization boundary.",
+      "requirements": "EXECUTION GATE: review, explicit target decisions, approved database authentication and schema repair required. Original selections: Category: Local Credential; Issues: Password found in configuration file; Solutions: Migrate from Plaintext Credentials to Azure Key Vault [kbId: plaintext-credential-to-azure-keyvault]. Category: Hardcoded Credential; Issues: CRA: Hard-coded credentials in configuration files; CRA: Default or well-known password detected; Solutions: Remove Hardcoded Credentials. Scope of reported findings: asset-manager\\web\\src\\main\\resources\\application.properties:5,17,22; asset-manager\\worker\\src\\main\\resources\\application.properties:3,14,19; todo-web-api-use-oracle-db\\src\\main\\resources\\application.yaml:5; jakarta-ee\\student-web-app\\liberty_config\\server-docker.xml:27. Tightly coupled ST datasource credentials in server-docker.env/docker-compose.yml must not remain a plaintext fallback after task 005. Password incidents 65cbf580-fd32-4ae1-a555-d3007b75d594, bb9d6487-ad41-48c0-81fe-7ab699f9f642, 84989935-2ac3-40e9-864c-675cb8143145, c3e9444b-2ffb-4a8e-8f23-f937fef2594d and 7bc0256d-11c1-4355-bf38-09671dac4267; hardcoded incidents 01e821bd-c2cd-409d-9f49-eda1f54f6979 and 8d007422-1582-437c-949e-df2ab607e127; default-password incidents c35bc53a-5fc4-4ca0-bdaa-40aca20fe88d, 37d27ed0-9952-4fb7-b9a3-967c70f2bf3e and fff1d367-ea0c-4005-8c82-5a160239542c. One credential owner covers overlaps with DB, S3, messaging and mail. First remove passwords/static keys retired by those transformations; never retain a secret merely to exercise KV. For approved residual application secrets, enable external KV references/retrieval with MI and no hardcoded/plaintext fallback. Never embed credentials in plans, logs, fixtures or sample environment files. Rotation/revocation of any real exposed values is an operator handoff, not automatic cloud provisioning or live secret mutation in this code-only plan. Scope final verification across all five Java apps, but assert no new findings without evidence. Future acceptance: affected builds/tests pass; focused mocked KV retrieval/unavailability tests and configuration checks show no hardcoded/default credential or secret logging in impacted paths. Security task 012 covers CWE-259/CWE-798 once, validating this same implementation rather than adding duplicate migrations.",
+      "dependencies": ["010-transform-file-to-console-logging"],
+      "skills": [
+        {"name": "migration-plaintext-credential-to-azure-keyvault", "location": "builtin"}
+      ],
+      "successCriteria": {
+        "passBuild": "true",
+        "generateNewUnitTests": "false",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "security",
+      "id": "012-security-cwe-cve",
+      "description": "Future targeted CWE scans/remediation and dependency CVE scan/remediation across all five Java applications plus report-referenced ContosoUniversity and Malshinon; no vulnerabilities are asserted by this planning task. Addresses the user's additional CWE/CVE requirements, retains cross-language report evidence and verifies the reported credential findings once.",
+      "reason": "Explicit user security requirements and the security plan template; security runs only after all upgrade/transform tasks.",
+      "requirements": "EXECUTION GATE: do not scan or remediate during plan creation; execution requires plan review, resolved targets and schema repair. App scope: asset-manager reactor including web and worker; mi-sql-public-demo; rabbitmq-sender; todo-web-api-use-oracle-db; jakarta-ee\\student-web-app including original/bundled WAR JARs and the converted Maven dependency graph; ContosoUniversity and Malshinon including their .csproj/packages.config dependencies and original report-referenced C#/JavaScript evidence. The five Java applications are migration scope; the two .NET applications are security-only scope, with no runtime upgrade or Azure transformation added. Java runtime/build environment is established by previous approved code tasks, not installed during planning; retain the two .NET projects' existing targets and use their appropriate build/test tools during future security validation. Apply the security template and builtin validate-cves-and-fix guidance where supported at execution; use the applicable .NET security/dependency tooling for .NET scopes rather than a Java runner. Do not add an unsupported skills field to this security task. Required individual future CWE scan/review coverage: CWE-477, CWE-606, CWE-681, CWE-682, CWE-772, CWE-775, CWE-789, CWE-835, CWE-662, CWE-820, CWE-259, CWE-732, CWE-778, CWE-798, CWE-22, CWE-23, CWE-36, CWE-434, CWE-89, CWE-99. Original security evidence must not be silently narrowed to Java: ContosoUniversity has reported CWE-606/CWE-835/CWE-662/CWE-820/CWE-732/CWE-778/CWE-99 evidence; Malshinon has CWE-772/CWE-775/CWE-89 evidence. Preserve exact original evidence links from report.json or its sanitized assessment-report.md and verify them during future scanning/review; their file paths exist, but no vulnerability audit was run during planning. The source also lists CVE-2025-59250 with no evidence files/explanation; treat it as an unverified lead and confirm affected component/version/applicability, not a proven current vulnerability. Record an individual disposition and evidence for every requested CWE ID across the scoped modules (confirmed/fixed, not found in fully reviewed scope, or justified not applicable); record scanner gaps and use focused review where automated rules are unavailable. Do not mark unscanned code safe. Fix confirmed findings and add focused regression tests without auditing unrelated repository projects. CWE-259/CWE-798 and the report's azure-password-01000/cra-hardcoded-credential-config-03000/cra-hardcoded-credential-default-pwd-04000 overlap task 011; use that implementation owner, verify closure and do not duplicate rewrites. Check that console migration still supports security-event visibility for CWE-778. CVE acceptance: inventory and scan direct/transitive Java/.NET dependencies, build plugins and bundled application JARs; record tool/version/advisory timestamp, per-app coverage, baseline findings, remediation versions and final rescan. Upgrade each confirmed affected dependency to the minimum patched compatible version. If a major upgrade is necessary, document dependency/current/target versions, compatibility/breaking risk and obtain approval for framework scope changes beyond this request. Do not invent CVE IDs or assert vulnerabilities before scanning. Final results must have no unresolved confirmed applicable CVEs and no unresolved confirmed findings for the requested CWEs; false-positive/not-applicable dispositions need evidence, while scan failures, unscanned artifacts and outstanding confirmed vulnerabilities block completion rather than count as passing. Verify builds and existing impacted/new regression tests after fixes for each Java/.NET app; final Java integration verification reuses the five-app frozen baseline, while .NET fixes require their own impacted existing/regression tests without adding cloud integration scope. Sanitized final reports must contain no secret values. No deployment/provisioning or broad assessment rerun.",
+      "dependencies": [
+        "001-upgrade-approved-java-target",
+        "003-transform-ant-to-maven",
+        "004-transform-postgresql-managed-identity",
+        "005-transform-liberty-mysql",
+        "006-transform-oracle-to-postgresql",
+        "007-transform-rabbitmq-to-servicebus",
+        "008-transform-s3-region-to-blob",
+        "009-transform-javamail-to-acs-email",
+        "010-transform-file-to-console-logging",
+        "011-transform-residual-credentials-to-keyvault"
+      ],
+      "successCriteria": {
+        "passBuild": "true",
+        "generateNewUnitTests": "true",
+        "passUnitTests": "true"
+      }
+    },
+    {
+      "type": "integrationTest",
+      "id": "013-integrationTest",
+      "description": "Build integration tests for migrated Azure services and run post-migration verification",
+      "requirements": "EXECUTION GATE: do not generate/run tests during planning; run only after plan approval, target decisions, schema repair and successful dependencies. Scope the five Java apps separately: asset-manager web/worker together; jakarta-ee\\student-web-app; todo-web-api-use-oracle-db; mi-sql-public-demo; rabbitmq-sender. Reuse task 002's frozen test specification, sanitized fixtures and infra-decision-table unchanged. Questionnaire default is Mock mode because no real infrastructure was supplied; do not provision resources, start containers, send emails/messages to real services or solicit live credentials. Verify changed AM PostgreSQL/MI, Service Bus routing and Blob behavior; ST MySQL/JNDI, student CRUD, ACS Email and console/secret behavior; TD PostgreSQL SQL-contract/CRUD behavior; impacted JDK/security changes in SQ and RM without inventing service migrations there. Compare expected outcomes against the pre-change snapshot and document pre-existing failures rather than treating them as introduced regressions. Cover success/failure and authentication/configuration contracts with mocks and include focused tests introduced for confirmed security fixes. Record exact per-app build/test commands and results. Security is a dependency so verification covers final patched code, not pre-remediation output. Completion requires no new behavioral regressions in impacted flows, passing builds/tests and sanitized reports. Explicit limitation: mocks do not prove actual SQL dialect execution, Entra token/RBAC/DB grants, real cloud networking, message delivery or email domain authorization; those require separately approved real-environment validation.",
+      "dependencies": [
+        "002-setupBaseline",
+        "001-upgrade-approved-java-target",
+        "003-transform-ant-to-maven",
+        "004-transform-postgresql-managed-identity",
+        "005-transform-liberty-mysql",
+        "006-transform-oracle-to-postgresql",
+        "007-transform-rabbitmq-to-servicebus",
+        "008-transform-s3-region-to-blob",
+        "009-transform-javamail-to-acs-email",
+        "010-transform-file-to-console-logging",
+        "011-transform-residual-credentials-to-keyvault",
+        "012-security-cwe-cve"
+      ]
+    }
+  ]
+}
