@@ -264,13 +264,13 @@ jobs:
           if [ $STATUS -ne 0 ]; then
             # Fail closed: without a confirmed required reviewer the gate would not pause.
             case "$OUT" in
-              *404*|*"Not Found"*) echo "::error::Environment assessment-review does not exist, so the gate would not pause. Run demo/beat4/setup.ps1." ;;
+              *404*|*"Not Found"*) echo "::error::Environment assessment-review does not exist, so the gate would not pause. Deploy the template from the Software Factory canvas." ;;
               *) echo "::error::Could not read the assessment-review environment ($OUT). The gate must be confirmed before the report is published." ;;
             esac
             exit 1
           fi
           if [ "$OUT" = "0" ]; then
-            echo "::error::Environment assessment-review has no required reviewer, so the gate would not pause. Run demo/beat4/setup.ps1."
+            echo "::error::Environment assessment-review has no required reviewer, so the gate would not pause. Deploy the template from the Software Factory canvas."
             exit 1
           fi
       - uses: actions/download-artifact@v4
@@ -287,6 +287,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE: ${{ needs.prepare.outputs.issue_number }}
+          MODERNIZE_ACTIONS_USD_PER_MINUTE: ${{ vars.MODERNIZE_ACTIONS_USD_PER_MINUTE }}
         run: python3 .github/scripts/modernize_assessment.py build --issue "$ISSUE" --facts facts --usage usage --out assessment
       - uses: actions/upload-artifact@v4
         with:
@@ -385,7 +386,16 @@ jobs:
           cp facts/facts.json "$DIR/evidence/"
           for f in rewrite.patch osv.json; do [ -f "facts/raw/$f" ] && cp "facts/raw/$f" "$DIR/evidence/"; done
           cp facts/raw/dependency-tree-*.txt facts/raw/jdeps-*.txt "$DIR/evidence/" 2>/dev/null || true
-          python3 .github/scripts/modernize_cost.py estimate --stages execution > "$DIR/cost-estimate.md"
+          cp assessment/cost-estimate.json "$DIR/"
+          {
+            echo "Predicted at gate 1 for every stage:"
+            echo
+            python3 .github/scripts/modernize_cost.py render --estimate "$DIR/cost-estimate.json"
+            echo
+            echo "Execution stage, per agent:"
+            echo
+            python3 .github/scripts/modernize_cost.py estimate --stages execution
+          } > "$DIR/cost-estimate.md"
           # Human comments on the request issue (not the /modernize command, not bots) are reviewer notes for gate 1.
           gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE/comments" --paginate \
             --jq '.[] | select(.user.type == "User" and (.body | startswith("/modernize") | not)) | {author: .user.login, created_at, body}' \
@@ -423,7 +433,8 @@ jobs:
           ├── assessment.md       approved report, finding IDs
           ├── findings.json       the same findings as data
           ├── evidence/           facts.json, rewrite.patch, osv.json, dependency trees, jdeps
-          ├── cost-estimate.md    estimated AI credits of the execution stage
+          ├── cost-estimate.md    predicted AI credits and runner minutes of every stage
+          ├── cost-estimate.json  the same prediction as data, compared with the actual cost at the end
           └── plan.md             written next by modernize-planner
           ```
 
@@ -497,7 +508,7 @@ jobs:
           {
             echo "Filled in by the pipeline from measured token counts, not by the planner agent."
             echo
-            echo "Estimated cost of the execution stage, which starts when this pull request is merged:"
+            echo "Predicted cost, made at gate 1. The execution stage starts when this pull request is merged:"
             echo
             cat "$DIR/cost-estimate.md"
             echo

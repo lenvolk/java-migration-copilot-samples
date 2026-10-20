@@ -410,25 +410,34 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: main
-          sparse-checkout: .github/scripts
+          sparse-checkout: |
+            .github/scripts
+            docs/modernization
       - name: Download the agents' usage records
         uses: actions/download-artifact@v4
         continue-on-error: true
         with:
           pattern: "*-{usage,info}"
           path: usage
-      - name: Report the AI cost of this run
+      - name: Report the cost of this modernization
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ needs.prepare.outputs.pr_number }}
+          ISSUE: ${{ needs.prepare.outputs.issue_number }}
         run: |
           {
             echo "<!-- modernize-cost -->"
-            echo "## AI cost of the execution stage"
+            echo "## Cost of this modernization: AI and GitHub Actions"
             echo
-            echo "Actual, recorded by gh-aw:"
+            echo "Actual against the prediction made at gate 1, for every stage:"
+            echo
+            python3 .github/scripts/modernize_cost.py compare --usage usage --estimate "docs/modernization/requests/$ISSUE/cost-estimate.json"
+            echo
+            echo "<details><summary>AI cost of the execution stage, per agent, recorded by gh-aw</summary>"
             echo
             python3 .github/scripts/modernize_cost.py actual --artifacts usage
+            echo
+            echo "</details>"
             echo
             echo "<details><summary>Estimate shown in the plan before approval</summary>"
             echo
@@ -467,7 +476,7 @@ jobs:
              && [ "$SPEC_VERDICT" = "Verdict: PASS" ] && [ "$STD_VERDICT" = "Verdict: PASS" ]; then
             gh pr ready "$PR"
             gh pr edit "$PR" --add-label ready-for-human-review
-            python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Human review" --status attention --detail "Ready: review pull request #$PR and merge when satisfied"
+            python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Human review" --status attention --detail "Ready: review and approve pull request #$PR (gate 3). Merging to main is a separate human decision"
           else
             gh pr edit "$PR" --add-label needs-attention
             python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Human review" --status failed --detail "Not ready: pull request #$PR stays a draft. Read the failed check or review, then re-run that stage"

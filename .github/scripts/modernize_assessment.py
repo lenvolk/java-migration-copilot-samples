@@ -258,7 +258,17 @@ def mermaid_pie(title, counts):
 
 
 
-def render(facts, findings, structured, sections, issue, run_url, estimate_md, estimate_total, actual_md, full=True, summaries=True):
+def predicted_row(predicted):
+    if not predicted:
+        return "| GitHub Actions minutes | n/a | | not predicted |"
+    stages = predicted["stages"].values()
+    minutes = sum(s["minutes"] or 0 for s in stages)
+    usd = modernize_cost.runner_usd(minutes, predicted.get("private"), predicted["rate"])
+    return f"| GitHub Actions minutes, all stages | {minutes} runner minutes | {usd} | job history or baseline |"
+
+
+def render(facts, findings, structured, sections, issue, run_url, estimate_md, estimate_total, actual_md, full=True, summaries=True,
+           predicted=None, predicted_md=None):
 
     b = facts["build"]
 
@@ -336,7 +346,8 @@ def render(facts, findings, structured, sections, issue, run_url, estimate_md, e
 
               f"| Findings | {', '.join(f'{v} {k.lower()}' for k, v in by_rank.items() if v) or 'none'} | each one owned by a plan step | analyst agents |",
 
-              f"| Estimated AI cost of plan and execution | {modernize_cost.fmt_credits(estimate_total)} credits | {modernize_cost.fmt_usd(estimate_total)} | measured profile |", ""]
+              f"| Estimated AI cost of plan and execution | {modernize_cost.fmt_credits(estimate_total)} credits | {modernize_cost.fmt_usd(estimate_total)} | measured profile |",
+              predicted_row(predicted), ""]
 
 
 
@@ -502,7 +513,11 @@ def render(facts, findings, structured, sections, issue, run_url, estimate_md, e
 
               "| Result | Draft Implementation pull request | Branch `modernize/issue-" + str(issue) + "`, never `main` | Gate 3: review the PR |", ""]
 
-    lines += ["### Estimated AI cost of the next stages", "", estimate_md]
+    if predicted_md:
+        lines += ["### Predicted cost of every stage (AI and GitHub Actions)", "", predicted_md,
+                  "<details><summary>Estimated AI cost of the next stages, per agent</summary>", "", estimate_md, "</details>", ""]
+    else:
+        lines += ["### Estimated AI cost of the next stages", "", estimate_md]
 
     if actual_md:
 
@@ -614,6 +629,9 @@ def build(args):
 
         actual_md = modernize_cost.actual_markdown(usage)[0] if usage else None
 
+    predicted = modernize_cost.predict(repo, run_id, args.usage, facts, args.workflows)
+    predicted_md = modernize_cost.render_estimate(predicted)
+
 
 
     out = pathlib.Path(args.out)
@@ -625,8 +643,10 @@ def build(args):
            "decisions": {k: (v or {}).get("decisions", []) for k, v in structured.items()}}
 
     (out / "findings.json").write_text(json.dumps(doc, indent=2), encoding="utf-8")
+    (out / "cost-estimate.json").write_text(json.dumps(predicted, indent=2), encoding="utf-8")
 
-    report = render(facts, findings, structured, sections, args.issue, run_url, estimate_md, estimate_total, actual_md, full=True)
+    report = render(facts, findings, structured, sections, args.issue, run_url, estimate_md, estimate_total, actual_md, full=True,
+                    predicted=predicted, predicted_md=predicted_md)
 
     (out / "assessment.md").write_text(report, encoding="utf-8")
 
@@ -640,7 +660,8 @@ def build(args):
 
             break
 
-        comment = render(facts, findings, structured, sections, args.issue, run_url, estimate_md, estimate_total, actual_md, full=full, summaries=summaries)
+        comment = render(facts, findings, structured, sections, args.issue, run_url, estimate_md, estimate_total, actual_md, full=full, summaries=summaries,
+                         predicted=predicted, predicted_md=predicted_md)
 
     if len(comment) > COMMENT_LIMIT:
 
