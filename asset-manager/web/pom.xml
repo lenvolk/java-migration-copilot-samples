@@ -10,7 +10,7 @@
     </parent>
 
     <properties>
-        <aws-sdk.version>2.25.13</aws-sdk.version>
+        <aws-sdk.version>2.57.1</aws-sdk.version>
     </properties>
 
     <artifactId>assets-manager-web</artifactId>
@@ -48,6 +48,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
+            <version>1.18.48</version>
             <optional>true</optional>
         </dependency>
         <dependency>
@@ -62,6 +63,7 @@
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
+            <version>42.7.14</version>
             <scope>runtime</scope>
         </dependency>
     </dependencies>
