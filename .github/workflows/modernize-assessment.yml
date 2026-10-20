@@ -187,7 +187,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           ISSUE: ${{ needs.prepare.outputs.issue_number }}
           DETAIL: ${{ steps.facts.outputs.detail }}
-        run: python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Baseline and tool evidence" --status done --detail "$DETAIL"
+        run: |
+          python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Baseline and tool evidence" --status done --detail "$DETAIL"
+          python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Compatibility analysis" --status running --detail "modernize-compat-analyst is reading the evidence, in parallel"
+          python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Dependency analysis" --status running --detail "modernize-dependency-analyst is reading the evidence, in parallel"
 
   modernize-compat-analyst:
     needs: [prepare, assessment-facts]

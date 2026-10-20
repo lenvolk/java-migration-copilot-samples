@@ -234,6 +234,10 @@ jobs:
           s() { if [ "$1" = "success" ]; then echo done; else echo failed; fi; }
           python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Build upgrade" --status "$(s "$UPGRADE")" --detail "Commit build(D-..) pushed by modernize-build-upgrader"
           python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Code fixes" --status "$(s "$CODEFIX")" --detail "Commits fix(C-..) pushed by modernize-code-fixer"
+          if [ "$CODEFIX" = "success" ]; then
+            python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Build and test verification" --status running --detail "JDK 21 build and tests, OSV.dev and SpotBugs re-scan"
+            python3 .github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Static checks" --status running --detail "Versions, javax imports, scope"
+          fi
 
   verify-build:
     needs: [prepare, modernize-code-fixer, track-build]
@@ -314,6 +318,10 @@ jobs:
         run: |
           gh pr comment "$PR" --body-file verification.md
           python3 main-scripts/.github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Build and test verification" --status "$STATUS" --detail "$DETAIL"
+          if [ "$STATUS" = "done" ]; then
+            python3 main-scripts/.github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Spec review" --status running --detail "modernize-conformance-reviewer, in parallel"
+            python3 main-scripts/.github/scripts/modernize_tracker.py --issue "$ISSUE" --stage "Standards review" --status running --detail "modernize-standards-reviewer, in parallel"
+          fi
           [ "$STATUS" = "done" ]
       - uses: actions/upload-artifact@v4
         if: always()
