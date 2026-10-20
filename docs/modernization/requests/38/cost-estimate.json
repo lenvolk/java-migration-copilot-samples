@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "generated_at": "2026-10-20T21:54:05+00:00",
+  "repo": "lenvolk/java-migration-copilot-samples",
+  "run": "39502651438",
+  "private": false,
+  "rate": 0.006,
+  "loc": 1287,
+  "stages": {
+    "assessment": {
+      "kind": "actual",
+      "ai_credits": 38.752123000000005,
+      "ai_low": null,
+      "ai_high": null,
+      "tokens": 2375170,
+      "minutes": 27,
+      "minutes_source": "this run"
+    },
+    "plan": {
+      "kind": "predicted",
+      "ai_credits": 45.95008,
+      "ai_low": 36.614143,
+      "ai_high": 70.845912,
+      "tokens": 648712,
+      "minutes": 12,
+      "minutes_source": "baseline"
+    },
+    "execution": {
+      "kind": "predicted",
+      "ai_credits": 112.29510049999999,
+      "ai_low": 89.97995255000001,
+      "ai_high": 197.2502257,
+      "tokens": 2257345,
+      "minutes": 46,
+      "minutes_source": "baseline"
+    }
+  }
+}
